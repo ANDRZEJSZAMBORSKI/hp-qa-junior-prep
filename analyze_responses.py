@@ -1,6 +1,8 @@
 import sys
 import json
 from pathlib import Path
+from rich.console import Console
+from rich.table import Table
 
 class InputFileError(Exception):
     def __init__(self, path: Path):
@@ -51,12 +53,29 @@ def analyze(data: list) -> dict:
             "avg_latency_ms": avg_latency_ms,
             "worst_endpoint": worst_endpoint}
     
+def print_report_Console(stats: dict) -> None:
+    console = Console()
+    console.print(stats)
+
+def print_report_Table(stats: dict) -> None:
+    console = Console()
+
+    table = Table()
+    table.add_column("Metric")
+    table.add_column("Value")
+
+    for key, value in stats.items():
+        table.add_row(key, str(value))
+
+    console.print(table)
 
 def main() -> None:
     if len(sys.argv) < 2:
         sys.exit("Not path to file")
     try:
-        print(analyze(load_payload(sys.argv[1])))
+        data = load_payload(sys.argv[1])
+        stats = analyze(data)
+        print_report_Table(stats)
     except (InputFileError, PayloadError) as e:
         sys.exit(str(e))
 
