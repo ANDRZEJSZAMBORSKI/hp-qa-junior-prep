@@ -26,6 +26,13 @@ def load_payload(path: str) -> list:
         raise PayloadError(path) from e
     if not isinstance(data, list):
         raise PayloadError(path, "Invalid payload structure")
+    required = {"id", "status", "latency_ms", "endpoint"} 
+    for d in data:
+        if not isinstance(d, dict):
+            raise PayloadError(path, "Invalid payload structure")
+        if not required.issubset(d.keys()):
+            raise PayloadError(path, "Invalid payload structure")
+
     return data
 
 def main() -> None:
@@ -33,9 +40,8 @@ def main() -> None:
         sys.exit("Not path to file")
     try:
         print(len(load_payload(sys.argv[1])))
-    except InputFileError as e:
+    except (InputFileError, PayloadError) as e:
         sys.exit(str(e))
-
 
 if __name__ == "__main__":
     main()
