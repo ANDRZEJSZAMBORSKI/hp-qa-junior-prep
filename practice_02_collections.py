@@ -13,8 +13,24 @@ TEST_CASES = [
   {"id": "TC012", "feature": "inventory","priority": "low",     "platform": "linux",   "automated": True,  "tags": ["cloud"]},
 ]
 
+def index_by_id(cases) -> dict[str, dict]:
+    requested = {"id", "feature", "priority", "platform", "automated", "tags"}    
+    res: dict[str, dict] = {}
+    for c in cases:
+        if not requested.issubset(c.keys()):
+            raise ValueError("Invalid payload structure")
+        if c["id"] in res: 
+            raise ValueError(f"Duplicate id: {c["id"]}")
+        res[c["id"]] = c
+    return res
+
 def main():
     print(len(TEST_CASES))
+    idx = index_by_id(TEST_CASES)
+    assert len(idx) == 12
+    assert idx["TC001"]["feature"] == "login"
+    assert idx["TC001"]["priority"] == "critical"
+    print("index_by_id OK")
 
 if __name__ == "__main__":
     main()
