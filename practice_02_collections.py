@@ -57,6 +57,44 @@ def tags_frequency(cases) -> dict[str, int]:
             res[t] = res.get(t, 0) + 1
     return res
 
+weight_priority = {"critical": 4,
+                   "high": 3,
+                   "medium": 2,
+                   "low": 1}
+
+weight_tags = {"smoke": 2,
+               "flaky": -2}
+
+def select_risk_based(cases, budget: int) -> list[str]:
+    import heapq
+    heap = []
+    for c in cases:
+        if not c["automated"]:
+            continue
+        res = weight_priority[c["priority"]]
+        for t in weight_tags:
+            if t in c["tags"]:
+                res += weight_tags[t]
+        heapq.heappush(heap, (res, -int(c["id"][2:]), c["id"]))
+        if len(heap) > budget:
+            heapq.heappop(heap)
+    res = list(heap)
+    res.sort(key=lambda x: (-x[0], -x[1]))
+    return [id for _, _, id in res]
+
+def explain_scores(cases) -> list[tuple[str, int]]:
+    heap = []
+    for c in cases:
+        if not c["automated"]:
+            continue
+        res = weight_priority[c["priority"]]
+        for t in weight_tags:
+            if t in c["tags"]:
+                res += weight_tags[t]
+        heap.append((c["id"], res))
+    heap.sort(key=lambda x: (-x[1], int(x[0][2:])))
+    return heap
+
 def main():
     print(len(TEST_CASES))
 
@@ -136,6 +174,16 @@ def main():
     assert freq["flaky"] == 1
     assert freq["ui"] == 1
     print("tags_frequency OK")
+
+    scores = explain_scores(TEST_CASES)
+    assert ("TC001", 6) in scores
+    assert ("TC008", 1) in scores
+    # manual нет в scores:
+    assert all(x[0] not in {"TC003", "TC005", "TC009"} for x in scores)
+    top5 = select_risk_based(TEST_CASES, 5)
+    assert len(top5) == 5
+    assert "TC003" not in top5 and "TC005" not in top5 and "TC009" not in top5
+    print("select_risk_based OK")
 
 if __name__ == "__main__":
     main()
