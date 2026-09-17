@@ -13,24 +13,96 @@ TEST_CASES = [
   {"id": "TC012", "feature": "inventory","priority": "low",     "platform": "linux",   "automated": True,  "tags": ["cloud"]},
 ]
 
-def index_by_id(cases) -> dict[str, dict]:
-    requested = {"id", "feature", "priority", "platform", "automated", "tags"}    
+requested = {"id", "feature", "priority", "platform", "automated", "tags"}
+
+def index_by_id(cases) -> dict[str, dict]:    
     res: dict[str, dict] = {}
     for c in cases:
         if not requested.issubset(c.keys()):
             raise ValueError("Invalid payload structure")
         if c["id"] in res: 
-            raise ValueError(f"Duplicate id: {c["id"]}")
+            raise ValueError(f"Duplicate id: {c['id']}")
         res[c["id"]] = c
+    return res
+
+def filter_cases(cases: list[dict], **kwargs) -> list[dict]:
+    res: list[dict] = []
+    for key in kwargs:
+        if key not in requested and key != 'priority_in':
+            raise ValueError(f"Invalid field name: {key}")
+    for c in cases:
+        if 'priority_in' not in kwargs:
+            if all(a == b for a, b in [(c[key], kwargs[key]) for key in kwargs]):
+                res.append(c)
+        else:
+            if c["priority"] in kwargs["priority_in"]:
+                tmp = [a == b for a, b in [(c[key], kwargs[key]) for key in kwargs if key != "priority_in"]]
+                if all(tmp):
+                    res.append(c)
     return res
 
 def main():
     print(len(TEST_CASES))
+
     idx = index_by_id(TEST_CASES)
     assert len(idx) == 12
     assert idx["TC001"]["feature"] == "login"
     assert idx["TC001"]["priority"] == "critical"
     print("index_by_id OK")
+
+    # 1. Фильтр по одному полю
+    result = filter_cases(TEST_CASES, feature="login")
+    assert len(result) == 4
+    assert {c["id"] for c in result} == {"TC001", "TC002", "TC003", "TC011"}
+
+    # 2. Фильтр по нескольким полям
+    result = filter_cases(TEST_CASES, feature="login", platform="windows")
+    assert len(result) == 3
+    assert {c["id"] for c in result} == {"TC001", "TC003", "TC011"}
+
+    # 3. Фильтр по automated
+    result = filter_cases(TEST_CASES, automated=True)
+    assert len(result) == 9
+
+    # 4. priority_in
+    result = filter_cases(TEST_CASES, priority_in={"critical", "high"})
+    assert len(result) == 8
+    assert {c["id"] for c in result} == {
+        "TC001", "TC002", "TC004", "TC005",
+        "TC007", "TC008", "TC010", "TC011"
+    }
+
+    # 5. priority_in + другое поле
+    result = filter_cases(
+        TEST_CASES,
+        priority_in={"critical", "high"},
+        feature="dfu"
+    )
+    assert len(result) == 3
+    assert {c["id"] for c in result} == {"TC004", "TC005", "TC010"}
+
+    # 6. Несколько обычных полей + priority_in
+    result = filter_cases(
+        TEST_CASES,
+        priority_in={"critical", "high"},
+        platform="windows",
+        automated=True
+    )
+    assert len(result) == 4
+    assert {c["id"] for c in result} == {"TC001", "TC004", "TC007", "TC011"}
+
+    # 7. Нет совпадений
+    result = filter_cases(TEST_CASES, feature="login", platform="linux")
+    assert result == []
+
+    # 8. Неверное имя поля
+    try:
+        filter_cases(TEST_CASES, wrong_field="test")
+        assert False
+    except ValueError:
+        pass
+
+    print("filter_cases OK")
 
 if __name__ == "__main__":
     main()
