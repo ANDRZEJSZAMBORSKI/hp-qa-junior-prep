@@ -15,7 +15,8 @@ class PayloadError(Exception):
         super().__init__(f"Invalid JSON in {path}" if not message else message)
 
 class EnvError(Exception):
-    pass
+    def __init__(self, message: str = ''):
+        super().__init__(message)
 
 def load_payload(path: str) -> list:
     path = Path(path)
@@ -69,14 +70,33 @@ def print_report_Table(stats: dict) -> None:
 
     console.print(table)
 
+def self_check(s: str) -> str:
+    path = Path(__file__).resolve().parent / s
+    if not path.exists():
+        raise EnvError(f"{path} not found")
+    with path.open("r", encoding="utf-8") as f:
+        for line in f:
+            l = line.strip()
+            if l.startswith("rich=="):
+                _, v = l.split('==')
+                if v: 
+                    return l
+                else:
+                    raise EnvError(f"rich== not found in {path}")
+    raise EnvError(f"rich== not found in {path}")
+
 def main() -> None:
     if len(sys.argv) < 2:
         sys.exit("Not path to file")
     try:
+        if sys.argv[1] == "--self-check":
+            if self_check("requirements.txt"):
+                print("self-check OK")
+            return
         data = load_payload(sys.argv[1])
         stats = analyze(data)
         print_report_Table(stats)
-    except (InputFileError, PayloadError) as e:
+    except (InputFileError, PayloadError, EnvError) as e:
         sys.exit(str(e))
 
 if __name__ == "__main__":
