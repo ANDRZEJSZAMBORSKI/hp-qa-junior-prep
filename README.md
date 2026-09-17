@@ -7,3 +7,5 @@ Junior QA Automation prep (Python, pytest, Selenium/Playwright, API).
 python -m venv .venv
 source .venv/Scripts/activate
 pip install -r requirements.txt
+python analyze_responses.py sample_responses.json
+python analyze_responses.py --self-check
