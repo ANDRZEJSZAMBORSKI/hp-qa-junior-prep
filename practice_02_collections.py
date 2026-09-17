@@ -44,6 +44,12 @@ def filter_cases(cases: list[dict], **kwargs) -> list[dict]:
 def unique_platforms(cases) -> set[str]:
     return {c["platform"] for c in cases}
 
+def tags_union(cases) -> set[str]:
+    result = set()
+    for c in cases:
+        result.update(c["tags"])
+    return result
+
 def main():
     print(len(TEST_CASES))
 
@@ -110,6 +116,10 @@ def main():
     platforms = unique_platforms(TEST_CASES)
     assert platforms == {"windows", "macos", "ios", "android", "linux"}
     print("unique_platforms OK")
+
+    tags = tags_union(TEST_CASES)
+    assert tags == {"smoke", "auth", "ui", "device", "cloud", "flaky"}
+    print("tags_union OK")
 
 if __name__ == "__main__":
     main()
