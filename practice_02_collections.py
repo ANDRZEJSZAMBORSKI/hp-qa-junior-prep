@@ -41,6 +41,9 @@ def filter_cases(cases: list[dict], **kwargs) -> list[dict]:
                     res.append(c)
     return res
 
+def unique_platforms(cases) -> set[str]:
+    return {c["platform"] for c in cases}
+
 def main():
     print(len(TEST_CASES))
 
@@ -103,6 +106,10 @@ def main():
         pass
 
     print("filter_cases OK")
+
+    platforms = unique_platforms(TEST_CASES)
+    assert platforms == {"windows", "macos", "ios", "android", "linux"}
+    print("unique_platforms OK")
 
 if __name__ == "__main__":
     main()
