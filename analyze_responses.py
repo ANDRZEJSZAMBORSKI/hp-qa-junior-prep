@@ -35,11 +35,28 @@ def load_payload(path: str) -> list:
 
     return data
 
+def analyze(data: list) -> dict:
+    total = len(data)
+    success = sum(1 for d in data if 200 <= d["status"] <= 299)
+    errors = sum(1 for d in data if d["status"] >= 400)
+    avg_latency_ms = round(sum(d["latency_ms"] for d in data) / total, 1)
+    endpoint: dict[str, int] = {}
+    for d in data:
+        if d["status"] >= 400:
+            endpoint[d["endpoint"]] = endpoint.get(d["endpoint"], 0) + 1
+    worst_endpoint = max(endpoint, key=endpoint.get)
+    return {"total": total,
+            "success": success,
+            "errors": errors,
+            "avg_latency_ms": avg_latency_ms,
+            "worst_endpoint": worst_endpoint}
+    
+
 def main() -> None:
     if len(sys.argv) < 2:
         sys.exit("Not path to file")
     try:
-        print(len(load_payload(sys.argv[1])))
+        print(analyze(load_payload(sys.argv[1])))
     except (InputFileError, PayloadError) as e:
         sys.exit(str(e))
 
