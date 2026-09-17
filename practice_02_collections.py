@@ -95,6 +95,21 @@ def explain_scores(cases) -> list[tuple[str, int]]:
     heap.sort(key=lambda x: (-x[1], int(x[0][2:])))
     return heap
 
+def feature_stats(cases) -> dict[str, dict]:
+    d: dict[str, dict] = {}
+    for c in cases:
+        d.setdefault(c["feature"], {
+                                    "total": 0,
+                                    "automated": 0,
+                                    "manual": 0,
+                                    "platforms": set()
+                                })
+        d[c["feature"]]["total"] += 1
+        d[c["feature"]]["automated"] += 1 if c["automated"] else 0
+        d[c["feature"]]["manual"] += 1 if not c["automated"] else 0
+        d[c["feature"]]["platforms"].add(c["platform"])
+    return d
+
 def main():
     print(len(TEST_CASES))
 
@@ -184,6 +199,24 @@ def main():
     assert len(top5) == 5
     assert "TC003" not in top5 and "TC005" not in top5 and "TC009" not in top5
     print("select_risk_based OK")
+
+    crit_ids = [c["id"] for c in TEST_CASES if c["priority"] == "critical"]
+    feat_count = {
+                    feature: sum(1 for c in TEST_CASES if c["feature"] == feature)
+                                for feature in {c["feature"] for c in TEST_CASES}
+                                } 
+    crit_platforms = {c["platform"] for c in TEST_CASES if c["priority"] == "critical"}
+
+    assert set(crit_ids) == {"TC001", "TC004", "TC007", "TC010"}
+    assert feat_count["login"] == 4
+    assert feat_count["dfu"] == 3
+    assert "windows" in crit_platforms and "macos" in crit_platforms
+    stats = feature_stats(TEST_CASES)
+    assert stats["login"]["total"] == 4
+    assert stats["login"]["automated"] == 3
+    assert stats["login"]["manual"] == 1
+    assert stats["bluetooth"]["platforms"] == {"android", "ios"}
+    print("feature_stats OK")
 
 if __name__ == "__main__":
     main()
