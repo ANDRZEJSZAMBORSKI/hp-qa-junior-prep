@@ -110,6 +110,18 @@ def feature_stats(cases) -> dict[str, dict]:
         d[c["feature"]]["platforms"].add(c["platform"])
     return d
 
+def coverage_matrix(cases) -> dict[tuple[str, str], int]:
+    res: dict[tuple[str, str], int] = {}
+    for c in cases:
+        res[(c["feature"], c["platform"])] = res.get((c["feature"], c["platform"]), 0) + 1
+    return res
+
+def top_coverage(cases, n=3) -> list[tuple[tuple[str, str], int]]:
+    data = coverage_matrix(cases)
+    res = [((feature, platform), val) for (feature, platform), val in data.items()]
+    res.sort(key=lambda x: (-x[1], x[0][0], x[0][1]))
+    return res[:n]
+
 def main():
     print(len(TEST_CASES))
 
@@ -217,6 +229,16 @@ def main():
     assert stats["login"]["manual"] == 1
     assert stats["bluetooth"]["platforms"] == {"android", "ios"}
     print("feature_stats OK")
+
+    m = coverage_matrix(TEST_CASES)
+    assert m[("login", "windows")] >= 2
+    assert m[("dfu", "windows")] == 1
+    assert m[("bluetooth", "android")] == 1
+
+    top = top_coverage(TEST_CASES, 3)
+    assert len(top) == 3
+    assert top[0][1] >= top[1][1] >= top[2][1]
+    print("coverage OK")
 
 if __name__ == "__main__":
     main()
