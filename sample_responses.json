@@ -1,0 +1,8 @@
+[
+  {"id": "r1", "status": 200, "latency_ms": 120, "endpoint": "/login"},
+  {"id": "r2", "status": 500, "latency_ms": 800, "endpoint": "/login"},
+  {"id": "r3", "status": 200, "latency_ms": 50,  "endpoint": "/devices"},
+  {"id": "r4", "status": 404, "latency_ms": 30,  "endpoint": "/devices/x"},
+  {"id": "r5", "status": 200, "latency_ms": 300, "endpoint": "/devices"},
+  {"id": "r6", "status": 401, "latency_ms": 40,  "endpoint": "/login"}
+]
