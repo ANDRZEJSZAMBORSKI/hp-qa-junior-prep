@@ -50,6 +50,13 @@ def tags_union(cases) -> set[str]:
         result.update(c["tags"])
     return result
 
+def tags_frequency(cases) -> dict[str, int]:
+    res: dict[str, int] = {}
+    for c in cases:
+        for t in c["tags"]:
+            res[t] = res.get(t, 0) + 1
+    return res
+
 def main():
     print(len(TEST_CASES))
 
@@ -120,6 +127,15 @@ def main():
     tags = tags_union(TEST_CASES)
     assert tags == {"smoke", "auth", "ui", "device", "cloud", "flaky"}
     print("tags_union OK")
+
+    freq = tags_frequency(TEST_CASES)
+    assert freq["smoke"] >= 3
+    assert freq["device"] >= 4
+    assert freq["auth"] == 3
+    assert freq["cloud"] == 3
+    assert freq["flaky"] == 1
+    assert freq["ui"] == 1
+    print("tags_frequency OK")
 
 if __name__ == "__main__":
     main()
