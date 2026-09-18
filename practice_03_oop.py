@@ -62,7 +62,11 @@ class TestCase:
             if params[key].annotation is not inspect.Parameter.empty and not isinstance(data[key], params[key].annotation):
                 raise TypeError(f"Invalid type for {data[key]}: must be {params[key].annotation}")
         return cls(**data)
-    
+
+    @staticmethod
+    def normalize_feature(raw: str) -> str:
+        return str(raw).strip().lower()
+
 class BasePage:
     def __init__(self, driver: str):
         self._driver = driver
@@ -156,6 +160,19 @@ def main():
     except ValueError:
         pass
     print("O5 OK")
+
+    assert TestCase.normalize_feature("  Login  ") == "login"
+    assert TestCase.normalize_feature("DFU") == "dfu"
+    # можно использовать вместе с from_dict
+    data = {
+        "id": "TC011",
+        "feature": TestCase.normalize_feature("  AuTh  "),
+        "priority": "high",
+        "automated": True,
+    }
+    tc = TestCase.from_dict(data)
+    assert tc.feature == "auth"
+    print("O6 OK")
 
 if __name__ == "__main__":
     main()
