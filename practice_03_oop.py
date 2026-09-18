@@ -1,4 +1,3 @@
-import dataclasses
 import inspect
 
 priorities = {"critical", "high", "medium", "low"}
@@ -173,6 +172,25 @@ def main():
     tc = TestCase.from_dict(data)
     assert tc.feature == "auth"
     print("O6 OK")
+
+    steps: list[str] = []
+    data = {
+    "id": "TC011",
+    "feature": TestCase.normalize_feature("  AuTh  "),
+    "priority": "high",
+    "automated": True,
+}
+    tc = TestCase.from_dict(data)
+    page = LoginPage("chrome")
+    steps.append(page.open("/login"))
+    steps.append(page.login("ann", "secret"))
+    home = HomePage("chrome")
+    steps.append(home.open_menu())
+    assert steps[0] == "chrome: open /login"
+    assert "login ann/secret" in steps[1]
+    assert steps[2] == "chrome: open menu"
+    assert "TC" in tc.summary()
+    print("O7 OK")
 
 if __name__ == "__main__":
     main()
