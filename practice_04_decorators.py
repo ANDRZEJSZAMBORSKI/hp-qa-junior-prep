@@ -55,6 +55,18 @@ def beta():
     """Beta doc."""
     return 2
 
+def ensure_non_negative(fn):
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        res = fn(*args, **kwargs)
+        return 0 if res < 0 else res
+    return wrapper
+
+@ensure_non_negative
+def score(x):
+    """Score fn."""
+    return x
+
 def main():
     res = slow_add(5, 5)
     assert res == 10
@@ -81,6 +93,12 @@ def main():
     assert beta.__doc__ == "Beta doc."
     assert alpha() == 1 and beta() == 2
     print("wraps OK")
+
+    assert score(-5) == 0
+    assert score(7) == 7
+    assert score(0) == 0
+    assert score.__name__ == "score"
+    print("ensure_non_negative OK")
 
 if __name__ == "__main__":
     main()
