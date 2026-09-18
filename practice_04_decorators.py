@@ -32,6 +32,28 @@ def calc(a, b=0):
     """Calc sum."""
     return a + b
 
+def logged_broken(fn):
+    def wrapper(*args, **kwargs):
+        res = fn(*args, **kwargs)
+        return res
+    return wrapper
+
+def logged_ok(fn):
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        res = fn(*args, **kwargs)
+        return res
+    return wrapper
+
+@logged_broken
+def alpha():
+    """Alpha doc."""
+    return 1
+
+@logged_ok
+def beta():
+    """Beta doc."""
+    return 2
 
 def main():
     res = slow_add(5, 5)
@@ -52,6 +74,13 @@ def main():
     assert calc.__name__ == "calc"
     assert calc.__doc__ == "Calc sum."
     print("logged OK")
+
+    assert alpha.__name__ == "wrapper"
+    assert alpha.__doc__ != "Alpha doc."   # обычно None
+    assert beta.__name__ == "beta"
+    assert beta.__doc__ == "Beta doc."
+    assert alpha() == 1 and beta() == 2
+    print("wraps OK")
 
 if __name__ == "__main__":
     main()
