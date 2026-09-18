@@ -1,3 +1,6 @@
+import dataclasses
+import inspect
+
 priorities = {"critical", "high", "medium", "low"}
 
 class TestCase:
@@ -38,7 +41,28 @@ class TestCase:
     def summary(self) -> str:
         return f"{self.id} [{self.priority}] {self.feature} auto={self.automated}"
 
-
+    @classmethod
+    def from_dict(cls, data: dict) -> "TestCase":
+        if not isinstance(data, dict):
+            raise ValueError("Invalid data type: must be dict")
+        if not data or data == {}:
+            raise ValueError("Invalid data: empty dictionary")
+        params = inspect.signature(cls.__init__).parameters
+        if not set(data.keys()).issubset(params.keys()):
+            raise ValueError("Invalid data: the dictionary contains unknown parameters.")
+        required = {
+                    name
+                    for name, param in params.items()
+                    if name != "self"
+                    and param.default is inspect.Parameter.empty
+                }
+        if not required.issubset(data.keys()):
+            raise ValueError("Invalid data: required parameters are missing")
+        for key in data:
+            if params[key].annotation is not inspect.Parameter.empty and not isinstance(data[key], params[key].annotation):
+                raise TypeError(f"Invalid type for {data[key]}: must be {params[key].annotation}")
+        return cls(**data)
+    
 class BasePage:
     def __init__(self, driver: str):
         self._driver = driver
@@ -114,6 +138,24 @@ def main():
     assert home.open_menu() == "chrome: open menu"
     assert isinstance(home.header, Header)
     print("O4 OK")
+
+    data = {
+        "id": "TC010",
+        "feature": "dfu",
+        "priority": "critical",
+        "automated": True,
+    }
+    tc = TestCase.from_dict(data)
+    assert isinstance(tc, TestCase)
+    assert tc.id == "TC010"
+    assert tc.summary() == "TC010 [critical] dfu auto=True"
+    # валидация priority всё ещё работает
+    try:
+        TestCase.from_dict({**data, "priority": "asap"})
+        assert False
+    except ValueError:
+        pass
+    print("O5 OK")
 
 if __name__ == "__main__":
     main()
