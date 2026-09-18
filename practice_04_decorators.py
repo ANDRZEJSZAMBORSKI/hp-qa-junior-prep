@@ -94,6 +94,13 @@ def flaky():
 def always_fail():
     raise ValueError("nope")
 
+# pipeline = logged(timed(pipeline))
+@logged # Outer decorator
+@timed # Inner decorator
+def pipeline(x):
+    """Pipeline fn."""
+    time.sleep(0.01)
+    return x * 2
 
 def main():
     res = slow_add(5, 5)
@@ -137,6 +144,11 @@ def main():
     except ValueError as e:
         assert "nope" in str(e)
     print("retry OK")
+        
+    assert pipeline(5) == 10
+    assert pipeline.__name__ == "pipeline"
+    assert pipeline.__doc__ == "Pipeline fn."
+    print("stacked OK")
 
 if __name__ == "__main__":
     main()
