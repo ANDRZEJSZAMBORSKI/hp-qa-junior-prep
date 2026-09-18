@@ -102,6 +102,26 @@ def pipeline(x):
     time.sleep(0.01)
     return x * 2
 
+def count_calls(fn):
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        wrapper.calls += 1
+        print(f"calls: {wrapper.calls}")
+        return fn(*args, **kwargs)
+    wrapper.calls = 0
+    return wrapper
+
+class Counter:
+    def __init__(self):
+        self.value = 0
+
+    @count_calls
+    def inc(self):
+        """Increment."""
+        self.value += 1
+        return self.value
+
+
 def main():
     res = slow_add(5, 5)
     assert res == 10
@@ -149,6 +169,14 @@ def main():
     assert pipeline.__name__ == "pipeline"
     assert pipeline.__doc__ == "Pipeline fn."
     print("stacked OK")
+
+    c = Counter()
+    assert c.inc() == 1
+    assert c.inc() == 2
+    assert c.inc.__name__ == "inc"
+    assert c.inc.__doc__ == "Increment."
+    assert c.inc.calls == 2
+    print("method decorator OK")
 
 if __name__ == "__main__":
     main()
