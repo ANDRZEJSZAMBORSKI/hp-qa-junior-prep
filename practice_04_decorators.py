@@ -17,6 +17,22 @@ def slow_add(a: int, b: int) -> int:
     time.sleep(0.05)
     return a + b
 
+def logged(fn):
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        print(f"Function name: {fn.__name__}")
+        print(f"Function arguments: args={args}, kwargs={kwargs}")
+        res = fn(*args, **kwargs)
+        print(f"Function result: {res}")
+        return res
+    return wrapper
+
+@logged
+def calc(a, b=0):
+    """Calc sum."""
+    return a + b
+
+
 def main():
     res = slow_add(5, 5)
     assert res == 10
@@ -31,7 +47,11 @@ def main():
     assert isinstance(res, int)
     print("timed OK")
 
-
+    assert calc(2, 3) == 5
+    assert calc(2, b=3) == 5
+    assert calc.__name__ == "calc"
+    assert calc.__doc__ == "Calc sum."
+    print("logged OK")
 
 if __name__ == "__main__":
     main()
