@@ -67,6 +67,34 @@ def score(x):
     """Score fn."""
     return x
 
+def retry(times: int = 3, exc_types=(Exception,)):
+    def decorator(fn):
+        @wraps(fn)
+        def wrapper(*args, **kwargs):
+            last = None
+            for i in range(times):
+                try:
+                    return fn(*args, **kwargs)
+                except exc_types as e:
+                    print(f"Attempt: {i + 1}")
+                    last = e
+            raise last
+        return wrapper
+    return  decorator
+
+calls = {"n": 0}
+@retry(times=3, exc_types=(ValueError,))
+def flaky():
+    calls["n"] += 1
+    if calls["n"] < 3:
+        raise ValueError("fail")
+    return "ok"
+
+@retry(times=2, exc_types=(ValueError,))
+def always_fail():
+    raise ValueError("nope")
+
+
 def main():
     res = slow_add(5, 5)
     assert res == 10
@@ -99,6 +127,16 @@ def main():
     assert score(0) == 0
     assert score.__name__ == "score"
     print("ensure_non_negative OK")
+
+    assert flaky() == "ok"
+    assert calls["n"] == 3
+
+    try:
+        always_fail()
+        assert False
+    except ValueError as e:
+        assert "nope" in str(e)
+    print("retry OK")
 
 if __name__ == "__main__":
     main()
