@@ -1,3 +1,5 @@
+priorities = {"critical", "high", "medium", "low"}
+
 class TestCase:
     def __init__(self,
                 id: str,
@@ -6,7 +8,7 @@ class TestCase:
                 automated: bool) -> None:
         self._id = id
         self._feature = feature
-        self._priority = priority
+        self.priority = priority
         self._automated = automated
 
     @property
@@ -21,6 +23,14 @@ class TestCase:
     def priority(self):
         return self._priority
 
+    @priority.setter
+    def priority(self, priority: str):
+        if not isinstance(priority, str):
+            raise TypeError(f"Invalid type {priority} - {type(priority)}: must be 'str'")
+        if priority not in priorities:
+            raise ValueError(f"Invalid priority: {priority} - must be one from {priorities}")
+        self._priority = priority
+
     @property
     def automated(self):
         return self._automated
@@ -33,6 +43,22 @@ def main():
     tc = TestCase("TC001", "login", "critical", True)
     assert tc.summary() == "TC001 [critical] login auto=True"
     print("O1 OK")
+
+    tc = TestCase("TC001", "login", "critical", True)
+    assert tc.priority == "critical"
+    tc.priority = "high"
+    assert tc.priority == "high"
+    try:
+        tc.priority = "urgent"
+        assert False
+    except ValueError as e:
+        assert "Invalid priority" in str(e)
+    try:
+        TestCase("TC002", "dfu", "asap", True)
+        assert False
+    except ValueError:
+        pass
+    print("O2 OK")
 
 if __name__ == "__main__":
     main()
