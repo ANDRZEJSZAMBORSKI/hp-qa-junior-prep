@@ -1,5 +1,6 @@
 from functools import wraps
 import time
+from functools import update_wrapper
 
 def timed(fn):
     @wraps(fn)
@@ -165,6 +166,30 @@ def fib(n):
 
     return fib(n - 1) + fib(n - 2)    
 
+class CallCounter:
+    def __init__(self, fn):
+        self._fn = fn
+        self._calls = 0
+        update_wrapper(self, fn)
+
+    @property
+    def fn(self):
+        return self._fn
+
+    @property
+    def calls(self):
+        return self._calls
+
+    def __call__(self, *args, **kwds):
+        self._calls += 1
+        return self.fn(*args, **kwds)
+
+@CallCounter
+def greet(name):
+    """Say hello."""
+    return f"Hello, {name}"
+
+
 def main():
     res = slow_add(5, 5)
     assert res == 10
@@ -238,6 +263,16 @@ def main():
     assert a == 5
     assert fib.calls == 6
     print("memoize OK")
+
+    for _ in range(10):
+        a = greet('Artur')
+    assert a == "Hello, Artur"
+    assert greet.__name__ == 'greet'
+    assert greet.__doc__ == 'Say hello.'
+    assert greet.calls == 10
+    assert greet(name="Artur") == "Hello, Artur"
+    assert greet.calls == 11
+    print('class CallCounter OK')
 
 if __name__ == "__main__":
     main()
