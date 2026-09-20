@@ -138,6 +138,33 @@ def init_config():
     print("init")
     return {"ok": True}
 
+def memoize(fn):
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        key = (args, tuple(sorted(kwargs.items())))
+        if key in wrapper.cache:
+            return wrapper.cache[key]
+        wrapper.cache[key] = fn(*args, **kwargs)
+        wrapper.calls += 1
+        return wrapper.cache[key]
+    wrapper.cache: dict = {}
+    wrapper.calls = 0
+    return wrapper
+
+@memoize
+def add_slow(a, b):
+    print("Function is running")
+    return a + b
+
+@memoize
+def fib(n):
+    print(f"Calculating fib({n})")
+
+    if n <= 1:
+        return n
+
+    return fib(n - 1) + fib(n - 2)    
+
 def main():
     res = slow_add(5, 5)
     assert res == 10
@@ -200,6 +227,17 @@ def main():
     assert a == {"ok": True}
     assert init_config.__name__ == "init_config"
     print("once OK")
+
+    a = add_slow(2, 3)
+    b = add_slow(2, 3)
+    assert a == 5
+    assert b == 5
+    assert add_slow.calls == 1
+
+    a = fib(5)
+    assert a == 5
+    assert fib.calls == 6
+    print("memoize OK")
 
 if __name__ == "__main__":
     main()
