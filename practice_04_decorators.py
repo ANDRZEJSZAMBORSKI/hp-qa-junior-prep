@@ -189,6 +189,32 @@ def greet(name):
     """Say hello."""
     return f"Hello, {name}"
 
+def label(fn=None, prefix='[LOG]'):
+    if fn is None:
+        def decorator(original_function):
+            @wraps(original_function)
+            def wrapper(*args, **kwargs):
+                print(f"{prefix} {original_function.__name__}")
+                print(f"{prefix} {wrapper.__name__}")
+                return original_function(*args, **kwargs)
+            return wrapper
+        print(f"{prefix} {decorator.__name__}")
+        return decorator
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        print(f"{prefix} {fn.__name__}")
+        print(f"{prefix} {wrapper.__name__}")
+        return fn(*args, **kwargs)
+    print(f"{prefix} {label.__name__}")
+    return wrapper
+
+@label
+def f():
+    return 1
+
+@label(prefix='Function ')
+def g():
+    return 2
 
 def main():
     res = slow_add(5, 5)
@@ -273,6 +299,12 @@ def main():
     assert greet(name="Artur") == "Hello, Artur"
     assert greet.calls == 11
     print('class CallCounter OK')
+
+    assert f() == 1
+    assert g() == 2
+
+    assert f.__name__ == 'f'
+    assert g.__name__ == 'g'
 
 if __name__ == "__main__":
     main()
