@@ -121,6 +121,22 @@ class Counter:
         self.value += 1
         return self.value
 
+def once(fn):
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        if not wrapper.called:
+            wrapper.result = fn(*args, **kwargs)
+            wrapper.called = True
+        return wrapper.result
+    wrapper.called = False
+    wrapper.result = None
+    return wrapper
+
+@once
+def init_config():
+    """Init once."""
+    print("init")
+    return {"ok": True}
 
 def main():
     res = slow_add(5, 5)
@@ -177,6 +193,13 @@ def main():
     assert c.inc.__doc__ == "Increment."
     assert c.inc.calls == 2
     print("method decorator OK")
+
+    a = init_config()
+    b = init_config()
+    assert a is b
+    assert a == {"ok": True}
+    assert init_config.__name__ == "init_config"
+    print("once OK")
 
 if __name__ == "__main__":
     main()
