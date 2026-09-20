@@ -216,6 +216,24 @@ def f():
 def g():
     return 2
 
+REGISTRY: dict[str, callable] = {}
+def register(fn):
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        return fn(*args, **kwargs)
+    REGISTRY[fn.__name__] = wrapper
+    return wrapper
+
+@register
+def ping(a: int, b: int):
+    """Function ping"""
+    return a + b
+
+@register
+def status():
+    """Function status"""
+    return "Status"
+
 def main():
     res = slow_add(5, 5)
     assert res == 10
@@ -302,9 +320,19 @@ def main():
 
     assert f() == 1
     assert g() == 2
-
     assert f.__name__ == 'f'
     assert g.__name__ == 'g'
+    print('label OK')
+
+    assert ping(2, 3) == 5
+    assert status() == 'Status'
+    assert REGISTRY["ping"] is ping
+    assert REGISTRY["status"] is status
+    assert REGISTRY["ping"](2, 3) == ping(2, 3)
+    assert REGISTRY["status"]() == status()
+    assert ping.__name__ == 'ping'
+    assert status.__name__ == 'status'
+    print('register OK')
 
 if __name__ == "__main__":
     main()
