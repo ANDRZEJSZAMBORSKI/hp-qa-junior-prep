@@ -49,11 +49,10 @@ class StepTimer:
         return False 
 
 @contextmanager
-def step_timer(name: str):
-    
+def step_timer(name: str):    
     print(f"[START] {name}")
+    start = time.perf_counter()
     try:
-        start = time.perf_counter()
         yield name
     finally:
         finish = time.perf_counter() - start
