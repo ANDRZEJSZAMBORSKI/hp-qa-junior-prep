@@ -18,6 +18,18 @@ def iter_smoke(cases: list[dict]):
         if "smoke" in c["tags"]:
             yield c
 
+G1 = [
+    {"id": "TC1", "tags": ["smoke"]},
+    {"id": "TC2", "tags": ["regression"]},
+]
+G2 = [
+    {"id": "TC3", "tags": ["smoke", "api"]},
+]
+
+def chain_smoke(*groups):
+    for g in groups:
+        yield from iter_smoke(g)
+
 def main():
     assert list(countdown(3)) == [3, 2, 1]
     assert list(countdown(0)) == []
@@ -38,7 +50,9 @@ def main():
     assert list(c["id"] for c in iter_smoke(CASES)) == ["TC1", "TC3"]
     print('iter_smoke OK')
 
-
+    assert list(c["id"] for c in chain_smoke(G1, G2)) == ["TC1", "TC3"]
+    assert list(chain_smoke()) == []
+    print('chain_smoke OK')
     
 if __name__ == '__main__':
     main()
