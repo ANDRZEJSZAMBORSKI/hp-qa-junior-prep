@@ -30,6 +30,14 @@ def chain_smoke(*groups):
     for g in groups:
         yield from iter_smoke(g)
 
+def take(n, it):
+    it = iter(it)
+    for _ in range(n):
+        try:
+            yield next(it)
+        except StopIteration:
+            return
+
 def main():
     assert list(countdown(3)) == [3, 2, 1]
     assert list(countdown(0)) == []
@@ -53,7 +61,17 @@ def main():
     assert list(c["id"] for c in chain_smoke(G1, G2)) == ["TC1", "TC3"]
     assert list(chain_smoke()) == []
     print('chain_smoke OK')
-    
+
+    assert list(take(2, iter_smoke(CASES))) == [
+        {"id": "TC1", "tags": ["smoke", "auth"]},
+        {"id": "TC3", "tags": ["smoke"]},
+    ]
+    assert list(take(0, countdown(5))) == []
+    assert list(take(10, countdown(3))) == [3, 2, 1]
+    assert list(take(1, countdown(5))) == [5]
+    assert list(take(2, countdown(5))) == [5, 4]
+    print('take OK')
+
 if __name__ == '__main__':
     main()
 
