@@ -1,5 +1,8 @@
 import time
 from contextlib import contextmanager
+import tempfile
+import os
+from pathlib import Path
 
 class StepTimer:
     def __init__(self, name: str):
@@ -58,6 +61,18 @@ def step_timer(name: str):
         finish = time.perf_counter() - start
         print(f"[END] {name} in {finish:.3f}s")
 
+@contextmanager
+def temp_text_file(text: str):
+    f = tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", delete=False)
+    f.write(text)
+    f.flush()
+    f.close()
+
+    try:
+        yield f.name
+    finally:
+        if os.path.exists(f.name):
+            os.remove(f.name)
 
 def main():
     with StepTimer("ok-step") as t:
@@ -79,6 +94,18 @@ def main():
     except RuntimeError:
         pass
     print('step_timer OK')
+
+    with temp_text_file("hello qa") as path:
+        assert Path(path).exists()
+        assert Path(path).read_text(encoding="utf-8") == "hello qa"
+    assert not Path(path).exists()
+    try:
+        with temp_text_file("x") as path2:
+            raise RuntimeError("boom")
+    except RuntimeError:
+        pass
+    assert not Path(path2).exists()
+    print("temp_text_file OK")
 
 if __name__ == '__main__':
     main()
