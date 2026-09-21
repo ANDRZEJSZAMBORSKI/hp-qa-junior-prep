@@ -7,6 +7,17 @@ def countdown(n: int):
 def squares(n: int):
     return (i ** 2 for i in range(n))
 
+CASES = [
+    {"id": "TC1", "tags": ["smoke", "auth"]},
+    {"id": "TC2", "tags": ["regression"]},
+    {"id": "TC3", "tags": ["smoke"]},
+]
+
+def iter_smoke(cases: list[dict]):
+    for c in cases: 
+        if "smoke" in c["tags"]:
+            yield c
+
 def main():
     assert list(countdown(3)) == [3, 2, 1]
     assert list(countdown(0)) == []
@@ -24,6 +35,11 @@ def main():
     assert sum(squares(5)) == 30
     print('squares OK')
 
+    assert list(c["id"] for c in iter_smoke(CASES)) == ["TC1", "TC3"]
+    print('iter_smoke OK')
+
+
+    
 if __name__ == '__main__':
     main()
 
