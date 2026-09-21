@@ -74,6 +74,25 @@ def temp_text_file(text: str):
         if os.path.exists(f.name):
             os.remove(f.name)
 
+class FakeDriver:
+    def __init__(self):
+        self.closed = False
+
+    def get(self, url: str) -> str:
+        if self.closed:
+            raise RuntimeError("driver closed")
+        return f"opened:{url}"
+
+    def quit(self):
+        self.closed = True
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb):
+        self.quit()
+        return False
+
 def main():
     with StepTimer("ok-step") as t:
         time.sleep(0.01)
@@ -107,6 +126,27 @@ def main():
     assert not Path(path2).exists()
     print("temp_text_file OK")
 
+    with FakeDriver() as d:
+        assert d.get("https://example.com") == "opened:https://example.com"
+        assert d.closed is False
+    assert d.closed is True
+
+    try:
+        with FakeDriver() as d2:
+            raise ValueError("test fail")
+    except ValueError:
+        pass
+    assert d2.closed is True
+
+    d3 = FakeDriver()
+    d3.quit()
+    try:
+        d3.get("x")
+        assert False, "must raise"
+    except RuntimeError:
+        pass
+    print("FakeDriver OK")
+    
 if __name__ == '__main__':
     main()
 
