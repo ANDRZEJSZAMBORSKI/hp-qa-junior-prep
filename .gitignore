@@ -1,7 +1,28 @@
+# virtual env
 .venv/
+
+# Python bytecode / cache
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
 .pytest_cache/
+
+# secrets
+.env
+
+# packaging / editable install artifacts
+*.egg-info/
+.eggs/
+dist/
+build/
+*.egg
+
+# test reports
 allure-results/
 allure-report/
-.env
+
+# OS / editor (полезно сразу)
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
