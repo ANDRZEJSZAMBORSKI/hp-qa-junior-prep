@@ -11,3 +11,10 @@ dependencies = []
 where = ["src"]
 [project.optional-dependencies]
 dev = ["pytest>=8.0"]
+[tool.pytest.ini_options]
+markers = [
+    "smoke: fast basic checks of lab_fw helpers",
+    "regression: broader lab_fw checks",
+    "user: doing with user",
+    "config: doing wuth config",
+]

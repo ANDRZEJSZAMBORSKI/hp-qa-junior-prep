@@ -1,14 +1,15 @@
 import pytest
 from lab_fw.data.users import make_user
 
-
+@pytest.mark.user
+@pytest.mark.smoke
 def test_make_user_defaults():
     user = make_user()
     assert user["email"] == "user@example.com"
     assert user["role"] == "user"
     assert user["active"] is True
 
-
+@pytest.mark.user
 def test_make_user_overrides():
     user = make_user(role="admin", active=False)
     assert user["role"] == "admin"
@@ -25,6 +26,8 @@ def test_make_user_overrides():
     ids=["default-user", "admin-active", "guest-inactive"],
 )
 
+@pytest.mark.user
+@pytest.mark.regression
 def test_make_user_roles(role, active):
     user = make_user(role=role, active=active)
     assert user["role"] == role
