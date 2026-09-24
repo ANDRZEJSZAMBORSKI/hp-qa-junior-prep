@@ -13,12 +13,20 @@ logger = logging.getLogger("lab_fw.api")
 
 
 class ApiClient:
-    def __init__(self, settings: Settings | None = None) -> None:
+    def __init__(
+                    self,
+                    settings: Settings | None = None,
+                    *,
+                    transport: httpx.BaseTransport | None = None,
+                ) -> None:
         self._settings = settings or get_settings()
-        self._client = httpx.Client(
-            base_url=self._settings.base_url,
-            timeout=self._settings.timeout_s,
-        )
+        kwargs: dict = {
+            "base_url": self._settings.base_url,
+            "timeout": self._settings.timeout_s,
+        }
+        if transport is not None:
+            kwargs["transport"] = transport
+        self._client = httpx.Client(**kwargs)
 
     def get(self, path: str, **kwargs) -> httpx.Response:
         return self._request("GET", path, **kwargs)
