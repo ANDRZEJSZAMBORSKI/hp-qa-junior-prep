@@ -22,4 +22,7 @@ markers = [
     "regression: broader lab_fw checks",
     "user: doing with user",
     "config: doing wuth config",
+    "mocks: mocks lab",
+    "mocks_pure: pure unittest.mock tests",
+    "mocks_httpx: httpx.MockTransport tests",
 ]
