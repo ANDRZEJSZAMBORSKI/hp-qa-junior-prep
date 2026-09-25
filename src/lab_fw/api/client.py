@@ -6,6 +6,7 @@ import logging
 
 import httpx
 
+from lab_fw.reporting import step, attach_json
 from lab_fw.core.config import Settings, get_settings
 from lab_fw.core.errors import ApiError
 
@@ -36,11 +37,13 @@ class ApiClient:
 
     def _request(self, method: str, path: str, **kwargs) -> httpx.Response:
         logger.info("%s %s", method, path)
-        try:
-            response = self._client.request(method, path, **kwargs)
-        except httpx.HTTPError as exc:
-            raise ApiError(f"{method} {path} failed: {exc}") from exc
-        return response
+        with step(f"{method} {path}"):
+            try:
+                response = self._client.request(method, path, **kwargs)
+            except httpx.HTTPError as exc:
+                raise ApiError(f"{method} {path} failed: {exc}") from exc
+            attach_json("response", {"status": response.status_code, "body": response.text[:1000],})
+            return response
 
     def close(self) -> None:
         self._client.close()

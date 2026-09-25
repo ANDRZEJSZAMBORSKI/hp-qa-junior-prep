@@ -6,6 +6,7 @@ from lab_fw.core.errors import ApiError
 from lab_fw.core.retry import retry_call
 from functools import wraps
 import logging
+from unittest.mock import patch
 
 @pytest.mark.mocks
 @pytest.mark.mocks_httpx
@@ -314,3 +315,61 @@ def test_mock_transport_with_retry_exhausted(settings):
             retry_call(lambda: client.get("/users"), delay_s = 0, retry_on = (ApiError,))
         assert isinstance(ei.value.__cause__, httpx.ConnectError)
         assert attempts == 3 
+
+@pytest.mark.mocks
+@pytest.mark.mocks_httpx
+def test_mock_transport_reporting_step(settings):
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"items": [1, 2]})
+
+    transport = httpx.MockTransport(handler)
+
+    with patch("lab_fw.api.client.step") as mock_step:
+        with ApiClient(settings, transport=transport) as client:
+            response = client.get("/users")
+
+    assert response.status_code == 200
+    mock_step.assert_called_once_with("GET /users")
+
+
+@pytest.mark.mocks
+@pytest.mark.mocks_httpx
+def test_mock_transport_reporting_attach_json(settings):
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"items": [1, 2]})
+
+    transport = httpx.MockTransport(handler)
+
+    with patch("lab_fw.api.client.attach_json") as mock_attach_json:
+        with ApiClient(settings, transport=transport) as client:
+            response = client.get("/users")
+
+    assert response.status_code == 200
+    assert response.json() == {"items": [1, 2]}
+    mock_attach_json.assert_called_once_with("response", {"status": 200, "body": '{"items":[1,2]}',})
+
+@pytest.mark.mocks
+@pytest.mark.mocks_httpx
+def test_mock_transport_reporting_attach_json_truncates_body(settings):
+    body = "x" * 1500
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, text=body)
+
+    transport = httpx.MockTransport(handler)
+
+    with patch("lab_fw.api.client.attach_json") as mock_attach_json:
+        with ApiClient(settings, transport=transport) as client:
+            response = client.get("/users")
+
+    assert response.status_code == 200
+    assert len(response.text) == 1500
+
+    mock_attach_json.assert_called_once()
+
+    args, kwargs = mock_attach_json.call_args
+
+    assert args[0] == "response"
+    assert args[1]["status"] == 200
+    assert args[1]["body"] == "x" * 1000
+    assert len(args[1]["body"]) == 1000

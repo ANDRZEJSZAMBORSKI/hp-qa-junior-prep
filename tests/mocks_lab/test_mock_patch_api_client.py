@@ -29,6 +29,7 @@ def test_patch_MagicMock():
             fake_response = MagicMock()
             fake_response.status_code = 200
             fake_response.json.return_value = {"ok": True}
+            fake_response.text = '{"ok": true}'
             mock_request.return_value = fake_response
             response = client.get("/users")
             assert response.status_code == 200
@@ -43,6 +44,7 @@ def test_patch_mock_Client():
             fake_response = MagicMock()
             fake_response.status_code = 200
             fake_response.json.return_value = {"ok": True}
+            fake_response.text = '{"ok": true}'
             mock_client.return_value.request.return_value = fake_response
             response = client.get("/users")
             assert response.status_code == 200
