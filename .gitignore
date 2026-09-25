@@ -21,6 +21,9 @@ build/
 allure-results/
 allure-report/
 
+# lab-fw test artifacts
+.lab_fw_artifacts/
+
 # OS / editor (полезно сразу)
 .DS_Store
 Thumbs.db
