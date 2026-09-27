@@ -373,3 +373,14 @@ def test_mock_transport_reporting_attach_json_truncates_body(settings):
     assert args[1]["status"] == 200
     assert args[1]["body"] == "x" * 1000
     assert len(args[1]["body"]) == 1000
+
+@pytest.mark.mocks
+@pytest.mark.mocks_httpx
+def test_local_mock_handler(settings, mock_handler):
+    transport = httpx.MockTransport(mock_handler)
+
+    with ApiClient(settings, transport=transport) as client:
+        response = client.get("/users")
+
+    assert response.status_code == 200
+    assert response.json() == {"source": "mocks_lab"}
