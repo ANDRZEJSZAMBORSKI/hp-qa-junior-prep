@@ -26,6 +26,7 @@ markers = [
     "mocks: mocks lab",
     "mocks_pure: pure unittest.mock tests",
     "mocks_httpx: httpx.MockTransport tests",
+    "api: API authentication tests",
 ]
 [project.entry-points.pytest11]
 lab_fw = "lab_fw.pytest_plugin.plugin"

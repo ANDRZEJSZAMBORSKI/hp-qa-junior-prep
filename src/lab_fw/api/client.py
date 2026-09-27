@@ -25,6 +25,10 @@ class ApiClient:
             "base_url": self._settings.base_url,
             "timeout": self._settings.timeout_s,
         }
+        if self._settings.api_token:
+            kwargs["headers"] = {
+                                    "Authorization": f"Bearer {self._settings.api_token}",
+                                }
         if transport is not None:
             kwargs["transport"] = transport
         self._client = httpx.Client(**kwargs)
@@ -53,3 +57,8 @@ class ApiClient:
 
     def __exit__(self, exc_type, exc, tb) -> None:
         self.close()
+
+    def set_bearer_token(self, token: str) -> None:
+        self._client.headers["Authorization"] = f"Bearer {token}"
+
+    
