@@ -67,10 +67,37 @@ token = parse_token(response.json())
 Ошибка валидации → `SchemaError` (наследник `ApiError`).  
 `pydantic>=2` — в optional `dev`.
 
+## Negative / errors
+
+`ApiClient.get/post` **не** кидают на 4xx/5xx сами — возвращают `httpx.Response`.  
+Проверка статуса — явно:
+
+```python
+from lab_fw.api.client import ensure_success
+
+response = client.get("/users/999")
+ensure_success(response)  # status < 400 → тот же response; иначе HttpStatusError
+```
+
+| Тип | Когда |
+|-----|--------|
+| `HttpStatusError` (`ApiError`) | `ensure_success` при status ≥ 400 (в Allure — attach status/body) |
+| `ApiError` | transport: `ConnectError`, `ReadTimeout`, … |
+| `SchemaError` (`ApiError`) | 200 OK, но JSON не проходит схему |
+
+Иерархия:
+
+```text
+ApiError
+ ├── SchemaError
+ └── HttpStatusError
+```
+
 ## Тесты
 
 ```bash
 pytest -q tests/test_api_auth.py
 pytest -q tests/test_api_schemas.py
+pytest -q tests/test_api_negative.py
 pytest -q -m api
 ```

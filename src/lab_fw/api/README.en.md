@@ -67,10 +67,37 @@ token = parse_token(response.json())
 Validation failure → `SchemaError` (subclass of `ApiError`).  
 `pydantic>=2` is in optional `dev`.
 
+## Negative / errors
+
+`ApiClient.get/post` do **not** raise on 4xx/5xx by themselves — they return `httpx.Response`.  
+Check status explicitly:
+
+```python
+from lab_fw.api.client import ensure_success
+
+response = client.get("/users/999")
+ensure_success(response)  # status < 400 → same response; else HttpStatusError
+```
+
+| Type | When |
+|------|------|
+| `HttpStatusError` (`ApiError`) | `ensure_success` when status ≥ 400 (Allure attach: status/body) |
+| `ApiError` | transport: `ConnectError`, `ReadTimeout`, … |
+| `SchemaError` (`ApiError`) | 200 OK, but JSON fails the schema |
+
+Hierarchy:
+
+```text
+ApiError
+ ├── SchemaError
+ └── HttpStatusError
+```
+
 ## Tests
 
 ```bash
 pytest -q tests/test_api_auth.py
 pytest -q tests/test_api_schemas.py
+pytest -q tests/test_api_negative.py
 pytest -q -m api
 ```

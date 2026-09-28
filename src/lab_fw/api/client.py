@@ -8,10 +8,29 @@ import httpx
 
 from lab_fw.reporting import step, attach_json
 from lab_fw.core.config import Settings, get_settings
-from lab_fw.core.errors import ApiError
+from lab_fw.core.errors import ApiError, HttpStatusError
 
 logger = logging.getLogger("lab_fw.api")
 
+def ensure_success(response: httpx.Response) -> httpx.Response:
+    if response.status_code < 400:
+        return response
+
+    request = response.request
+    body = response.text[:1000]
+
+    attach_json(
+        "status_error",
+        {
+            "status": response.status_code,
+            "body": body,
+        },
+    )
+
+    raise HttpStatusError(
+        f"{request.method} {request.url.path} "
+        f"failed with HTTP {response.status_code}: {body}"
+    )
 
 class ApiClient:
     def __init__(

@@ -18,3 +18,6 @@ class UiError(LabFwError):
 
 class SchemaError(ApiError):
     """API response schema validation failure."""
+
+class HttpStatusError(ApiError):
+    """HTTP response status indicates a failed API request."""
