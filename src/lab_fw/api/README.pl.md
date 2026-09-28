@@ -48,9 +48,29 @@ HTTP ≥400 / zły JSON / brak `access_token` → `ApiError`.
 
 W unit-testach endpoint mockujemy przez `httpx.MockTransport`, bez prawdziwego IdP.
 
+## Schema (pydantic)
+
+Odpowiedzi API walidujemy modelami w `lab_fw.api.schemas` (nie ręcznymi assertami pól w każdym teście).
+
+| Model | Pola | Polityka |
+|-------|------|----------|
+| `User` | `id: int`, `name: str` | `strict=True`, `extra="forbid"` |
+| `TokenResponse` | `access_token`, `token_type`, `expires_in` | to samo |
+
+```python
+from lab_fw.api.schemas import parse_user, parse_token
+
+user = parse_user(response.json())
+token = parse_token(response.json())
+```
+
+Błąd walidacji → `SchemaError` (dziedziczy po `ApiError`).  
+`pydantic>=2` jest w optional `dev`.
+
 ## Testy
 
 ```bash
 pytest -q tests/test_api_auth.py
+pytest -q tests/test_api_schemas.py
 pytest -q -m api
 ```

@@ -15,3 +15,6 @@ class ApiError(LabFwError):
 
 class UiError(LabFwError):
     """UI / page / driver layer failure."""
+
+class SchemaError(ApiError):
+    """API response schema validation failure."""

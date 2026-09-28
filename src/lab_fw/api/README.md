@@ -48,9 +48,29 @@ token = fetch_client_credentials_token(client, "client-id", "client-secret")
 
 В unit-тестах endpoint мокается через `httpx.MockTransport`, без реального IdP.
 
+## Schema (pydantic)
+
+Ответы API валидируются через модели в `lab_fw.api.schemas` (не сырой `allure`/`assert` по полям вручную в каждом тесте).
+
+| Модель | Поля | Политика |
+|--------|------|----------|
+| `User` | `id: int`, `name: str` | `strict=True`, `extra="forbid"` |
+| `TokenResponse` | `access_token`, `token_type`, `expires_in` | то же |
+
+```python
+from lab_fw.api.schemas import parse_user, parse_token
+
+user = parse_user(response.json())
+token = parse_token(response.json())
+```
+
+Ошибка валидации → `SchemaError` (наследник `ApiError`).  
+`pydantic>=2` — в optional `dev`.
+
 ## Тесты
 
 ```bash
 pytest -q tests/test_api_auth.py
+pytest -q tests/test_api_schemas.py
 pytest -q -m api
 ```

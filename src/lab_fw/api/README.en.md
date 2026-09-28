@@ -48,9 +48,29 @@ HTTP ≥400 / invalid JSON / missing `access_token` → `ApiError`.
 
 In unit tests the endpoint is mocked with `httpx.MockTransport` — no real IdP.
 
+## Schema (pydantic)
+
+API responses are validated via models in `lab_fw.api.schemas` (not ad-hoc field asserts in every test).
+
+| Model | Fields | Policy |
+|-------|--------|--------|
+| `User` | `id: int`, `name: str` | `strict=True`, `extra="forbid"` |
+| `TokenResponse` | `access_token`, `token_type`, `expires_in` | same |
+
+```python
+from lab_fw.api.schemas import parse_user, parse_token
+
+user = parse_user(response.json())
+token = parse_token(response.json())
+```
+
+Validation failure → `SchemaError` (subclass of `ApiError`).  
+`pydantic>=2` is in optional `dev`.
+
 ## Tests
 
 ```bash
 pytest -q tests/test_api_auth.py
+pytest -q tests/test_api_schemas.py
 pytest -q -m api
 ```
