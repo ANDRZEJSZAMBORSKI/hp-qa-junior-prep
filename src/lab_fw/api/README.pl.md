@@ -93,11 +93,38 @@ ApiError
  └── HttpStatusError
 ```
 
+## Retry policy
+
+Retry **nie** jest włączony w każdy `get/post`. Wywołuj jawnie:
+
+```python
+from lab_fw.core.retry import retry_call
+from lab_fw.api.client import ensure_success
+
+def once():
+    return ensure_success(client.get("/users"))
+
+retry_call(once, delay_s=0, retry_on=(ApiError,), retry_if=True)
+```
+
+`retry_if=True` → decyzja przez `lab_fw.api.retry_policy.should_retry`.
+
+| Sytuacja | Retry? |
+|----------|--------|
+| GET + HTTP **429** / **503** (`HttpStatusError`) | tak |
+| GET + transport (`ConnectError` / `ReadTimeout` → `ApiError`) | tak |
+| GET + **400 / 401 / 403 / 404 / 422 / 500** | nie |
+| POST / nie-GET | nie |
+| nie-`ApiError` | nie (przy `retry_if=True` propagowane) |
+
+`HttpStatusError` trzyma `response`, żeby policy widziała method/status.
+
 ## Testy
 
 ```bash
 pytest -q tests/test_api_auth.py
 pytest -q tests/test_api_schemas.py
 pytest -q tests/test_api_negative.py
+pytest -q tests/test_api_retry_policy.py
 pytest -q -m api
 ```

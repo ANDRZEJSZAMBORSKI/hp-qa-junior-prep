@@ -93,11 +93,38 @@ ApiError
  └── HttpStatusError
 ```
 
+## Retry policy
+
+Retry **не** включён в каждый `get/post`. Явно:
+
+```python
+from lab_fw.core.retry import retry_call
+from lab_fw.api.client import ensure_success
+
+def once():
+    return ensure_success(client.get("/users"))
+
+retry_call(once, delay_s=0, retry_on=(ApiError,), retry_if=True)
+```
+
+`retry_if=True` → решение через `lab_fw.api.retry_policy.should_retry`.
+
+| Ситуация | Retry? |
+|----------|--------|
+| GET + HTTP **429** / **503** (`HttpStatusError`) | да |
+| GET + transport (`ConnectError` / `ReadTimeout` → `ApiError`) | да |
+| GET + **400 / 401 / 403 / 404 / 422 / 500** | нет |
+| POST / не-GET | нет |
+| не-`ApiError` | нет (при `retry_if=True` пробрасывается) |
+
+`HttpStatusError` хранит `response`, чтобы policy видела method/status.
+
 ## Тесты
 
 ```bash
 pytest -q tests/test_api_auth.py
 pytest -q tests/test_api_schemas.py
 pytest -q tests/test_api_negative.py
+pytest -q tests/test_api_retry_policy.py
 pytest -q -m api
 ```

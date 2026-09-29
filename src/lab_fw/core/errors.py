@@ -1,5 +1,5 @@
 """Framework error types for lab_fw."""
-
+import httpx
 
 class LabFwError(Exception):
     """Root error for all lab_fw failures."""
@@ -21,3 +21,11 @@ class SchemaError(ApiError):
 
 class HttpStatusError(ApiError):
     """HTTP response status indicates a failed API request."""
+    def __init__(
+        self,
+        message: str,
+        *,
+        response: httpx.Response | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.response = response

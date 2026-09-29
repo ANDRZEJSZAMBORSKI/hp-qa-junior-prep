@@ -29,7 +29,8 @@ def ensure_success(response: httpx.Response) -> httpx.Response:
 
     raise HttpStatusError(
         f"{request.method} {request.url.path} "
-        f"failed with HTTP {response.status_code}: {body}"
+        f"failed with HTTP {response.status_code}: {body}",
+        response=response
     )
 
 class ApiClient:

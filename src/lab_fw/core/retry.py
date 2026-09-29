@@ -7,6 +7,8 @@ import random
 import time
 from collections.abc import Callable
 from typing import TypeVar
+from lab_fw.core.errors import ApiError, HttpStatusError
+from lab_fw.api.retry_policy import should_retry
 
 T = TypeVar("T")
 logger = logging.getLogger("lab_fw.core.retry")
@@ -20,6 +22,7 @@ def retry_call(
     backoff: float = 2.0,
     jitter: float = 0.2,
     retry_on: tuple[type[BaseException], ...] = (Exception,),
+    retry_if: bool = False,
 ) -> T:
     """Call fn until success or attempts are exhausted."""
     if attempts < 1:
@@ -32,6 +35,11 @@ def retry_call(
             return fn()
         except retry_on as exc:
             last_exc = exc
+            if retry_if:
+                if not isinstance(exc, ApiError):
+                    raise
+                if not should_retry(exc):
+                    raise last_exc
             if attempt >= attempts:
                 break
             pause = delay_s * (backoff ** (attempt - 1))
