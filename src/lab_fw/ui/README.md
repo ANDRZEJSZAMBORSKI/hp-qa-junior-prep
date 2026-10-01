@@ -2,11 +2,11 @@
 
 **RU** · [EN](README.en.md) · [PL](README.pl.md)
 
-UI-слой фреймворка на **Playwright** (primary). Selenium — отдельный шаг фазы D позже.
+UI-слой фреймворка: **Playwright = primary**, **Selenium = second stack** (D2). Стек не смешиваем в одном page-классе.
 
 ## Зачем
 
-Тесты не дергают сырой Playwright в каждом файле: `UIClient` поднимает Chromium + context/page, page objects (`LoginPage`, `SecurePage`) инкапсулируют локаторы и действия. Base URL — из settings/env.
+Тесты не дергают сырой браузерный API в каждом файле: клиент поднимает browser/driver, page objects инкапсулируют локаторы и действия. Base URL — из settings/env.
 
 ## Установка
 
@@ -15,7 +15,7 @@ pip install -e ".[dev]"
 playwright install chromium
 ```
 
-`playwright` — в optional `dev`. Нужен **бинарник Chromium** (команда выше), иначе `BrowserType.launch` упадёт.
+В `dev`: `playwright`, `selenium`. Для Playwright нужен бинарник Chromium (команда выше). Selenium 4 тянет драйвер через **Selenium Manager** (отдельный chromedriver вручную обычно не нужен).
 
 ## Settings
 
@@ -23,9 +23,13 @@ playwright install chromium
 |-----|------------|
 | `LAB_FW_UI_BASE_URL` | base URL UI (default `https://the-internet.herokuapp.com`) |
 
-Пустой URL → `UiError` при создании `UIClient`.
+Пустой URL → `UiError` при создании клиента.
 
-## UIClient
+Demo: [the-internet.herokuapp.com](https://the-internet.herokuapp.com/) (login / secure).
+
+---
+
+## Playwright (primary) — `UIClient`
 
 ```python
 from lab_fw.ui.client import UIClient
@@ -35,36 +39,65 @@ with UIClient(get_settings()) as ui:
     ui.page.goto("/login")
 ```
 
-- `start()` / context manager: Playwright → Chromium → context(`base_url=...`) → page  
-- `close()` / `__exit__`: page/context/browser/playwright  
-- доступ: `ui.page`, `ui.settings`
-
-Фикстуры в `tests/conftest.py`: `ui_client` (function) и `ui_client_module` (module, shared session).
-
-## Page objects
-
-| Класс | path | Идея |
-|-------|------|------|
-| `LoginPage` | `/login` | поля, login → возвращает `SecurePage` |
-| `SecurePage` | `/secure` | logout → возвращает `LoginPage` |
-
-Оба наследуют `lab_fw.abstractions.BasePage` (`open`, `path`). Waits — auto-wait Playwright / locators, без `time.sleep`.
-
-Demo-сайт: [the-internet.herokuapp.com](https://the-internet.herokuapp.com/) (login / secure).
-
-## Прогон
+- `start()` / CM: Playwright → Chromium → context(`base_url=...`) → page  
+- pages: `lab_fw.ui.pages` (`LoginPage`, `SecurePage`)  
+- фикстуры: `ui_client`, `ui_client_module`  
+- маркер: `@pytest.mark.ui`  
+- waits: auto-wait Playwright, без `time.sleep`
 
 ```bash
 pytest -m ui -q
+```
+
+---
+
+## Selenium (D2) — `SeleniumClient`
+
+Отдельный lifecycle и отдельные pages: `lab_fw.ui.selenium_client`, `lab_fw.ui.selenium_pages`.
+
+```python
+from lab_fw.ui.selenium_client import SeleniumClient
+from lab_fw.ui.selenium_pages.login_page import LoginPage
+from lab_fw.core.config import get_settings
+
+with SeleniumClient(get_settings()) as sc:
+    page = LoginPage(sc.driver, settings.ui_base_url)
+    page.open()
+```
+
+- Chrome + **Selenium Manager**  
+- Chrome options глушат Password Manager / leak detection (иначе на втором login demo-пароля всплывает «Смените пароль» и ломает ввод)  
+- pages на `BasePage`; локаторы с **ID** где можно (`#username`, `#password`)  
+- waits: `WebDriverWait` + `expected_conditions` (explicit), без `time.sleep`  
+- неуспешный переход login/logout → `UiError` (не маскируем `return self`)  
+- фикстуры: `selenium_client`, `selenium_client_module`  
+- маркер: `@pytest.mark.selenium`
+
+```bash
+pytest -m selenium -q
+```
+
+| | Playwright | Selenium |
+|--|------------|----------|
+| Клиент | `UIClient` | `SeleniumClient` |
+| Pages | `ui.pages` | `ui.selenium_pages` |
+| Marker | `ui` | `selenium` |
+| Wait | auto-wait | explicit `WebDriverWait` |
+
+---
+
+## Общий прогон
+
+```bash
+pytest -m ui -q
+pytest -m selenium -q
 pytest -q
 ```
 
-Маркер `ui` зарегистрирован в `pyproject.toml`.
+Ассерты URL — через `settings.ui_base_url`, без хардкода хоста.
 
-Ассерты URL строят от `settings.ui_base_url`, не хардкодят хост.
-
-Часть module-scope тестов **намеренно** делит одну `page` (shared state) — в docstring теста указано; один такой тест отдельно может упасть.
+Часть module-scope тестов **намеренно** делит одну сессию (shared state) — в docstring; один такой тест отдельно может упасть.
 
 ## Почему Playwright primary
 
-Стабильные auto-waits, один API для Chromium, удобный sync Python API. Selenium в репо появится как D2 (второй стек), не как замена.
+Стабильные auto-waits и удобный sync API. Selenium нужен как второй стек под требования HP («Selenium / Playwright») — уметь читать/писать оба, не дублировать весь suite один-в-один.

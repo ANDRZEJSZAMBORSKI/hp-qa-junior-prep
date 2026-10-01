@@ -4,6 +4,7 @@ from lab_fw.core.config import Settings, get_settings
 from lab_fw.core.logging_setup import setup_logging
 from lab_fw.api.client import ApiClient
 from lab_fw.ui.client import UIClient
+from lab_fw.ui.selenium_client import SeleniumClient
 
 
 @pytest.fixture
@@ -47,4 +48,18 @@ def ui_client_module(module_settings):
     ui.start()
     yield ui
     ui.close()
+
+@pytest.fixture
+def selenium_client(settings):
+    sc = SeleniumClient(settings)
+    sc.start()
+    yield sc
+    sc.close()
+
+@pytest.fixture(scope="module")
+def selenium_client_module(module_settings):
+    sc = SeleniumClient(module_settings)
+    sc.start()
+    yield sc
+    sc.close()
 
