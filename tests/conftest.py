@@ -3,6 +3,8 @@ import httpx
 from lab_fw.core.config import Settings, get_settings
 from lab_fw.core.logging_setup import setup_logging
 from lab_fw.api.client import ApiClient
+from lab_fw.ui.client import UIClient
+
 
 @pytest.fixture
 def settings() -> Settings:
@@ -31,3 +33,18 @@ def module_settings() -> Settings:
 @pytest.fixture(scope="module")
 def module_settings_id(module_settings):
     return id(module_settings)
+
+@pytest.fixture
+def ui_client(settings):
+    ui = UIClient(settings)
+    ui.start()
+    yield ui
+    ui.close()
+
+@pytest.fixture(scope="module")
+def ui_client_module(module_settings):
+    ui = UIClient(module_settings)
+    ui.start()
+    yield ui
+    ui.close()
+

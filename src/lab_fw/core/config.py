@@ -13,6 +13,7 @@ class Settings:
     base_url: str
     timeout_s: float
     log_level: str
+    ui_base_url: str | None = None
     api_token: str | None = None
 
 
@@ -20,6 +21,7 @@ def get_settings() -> Settings:
     base_url = os.getenv("LAB_FW_BASE_URL", "https://example.com")
     raw_timeout = os.getenv("LAB_FW_TIMEOUT_S", "5.0")
     log_level = os.getenv("LAB_FW_LOG_LEVEL", "INFO")
+    ui_base_url = os.getenv("LAB_FW_UI_BASE_URL", "https://the-internet.herokuapp.com")
     api_token = os.getenv("LAB_FW_API_TOKEN")
     try:
         timeout_s = float(raw_timeout)
@@ -33,5 +35,6 @@ def get_settings() -> Settings:
         base_url=base_url.rstrip("/"),
         timeout_s=timeout_s,
         log_level=log_level.upper(),
+        ui_base_url = ui_base_url.rstrip("/"),
         api_token=api_token,
     )
