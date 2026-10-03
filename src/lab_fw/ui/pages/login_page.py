@@ -1,40 +1,44 @@
 from playwright.sync_api import Page
-from lab_fw.abstractions import BasePage
+from lab_fw.ui import BasePage
+from lab_fw.ui.components.flash_message import FlashMessage
+from lab_fw.ui.components.playwright_wait import PlaywrightWait
 
 class LoginPage(BasePage):
     def __init__(self, page: Page):
-        self.page = page
-        self._username = self.page.get_by_label("Username")
-        self._password = self.page.get_by_label("Password")
-        self._login_button = self.page.get_by_role("button", name="Login")
+        super().__init__(page)
+        self.flash = FlashMessage(page)
+        self.wait = PlaywrightWait(page)
+        #self._username = self.page.get_by_label("Username")
+        #self._password = self.page.get_by_label("Password")
+        #self._login_button = self.page.get_by_role("button", name="Login")
+        self._username = self.page.locator("#username")
+        self._password = self.page.locator("#password")
+        self._login_button = self.page.locator("button[type='submit']")
         
-
     @property
     def path(self):
         return "/login"
 
-    def open(self):
-        self.page.goto(self.path)
+    def open(self) -> None:
+        super().open()
+        self.wait.wait_visible(self._username)
 
     def is_username_visible(self):
-        return self._username.is_visible()
+        return self.wait.is_visible(self._username)
 
     def is_password_visible(self):
-        return self._password.is_visible()
-
-    def get_url(self):
-        return self.page.url
+        return self.wait.is_visible(self._password)
 
     def login(self, username: str, password: str):
-        self._username.fill(username)
+        self.wait.wait_visible(self._username).fill(username)
         self._password.fill(password)
         self._login_button.click()
+        self.wait.wait_url("**/secure")
         from lab_fw.ui.pages.secure_page import SecurePage
-
         return SecurePage(self.page)
 
     def is_login_success_message_visible(self, text: str):
-        return self.page.get_by_text(text).is_visible()
+        return self.flash.is_visible(text)
 
     def is_login_error_message_visible(self, text: str):
-        return self.page.get_by_text(text).is_visible()
+        return self.flash.is_visible(text)

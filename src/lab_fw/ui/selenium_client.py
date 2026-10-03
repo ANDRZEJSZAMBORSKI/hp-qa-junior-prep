@@ -3,6 +3,7 @@ from selenium.webdriver.remote.webdriver import WebDriver
 
 from lab_fw.core.config import Settings
 from lab_fw.core.errors import UiError
+from lab_fw.ui.timeouts import ui_timeout_s
 
 class SeleniumClient:
     def __init__(self, settings: Settings):
@@ -37,6 +38,7 @@ class SeleniumClient:
                                             },
                                         )
         self._driver = webdriver.Chrome(options=options)
+        self._driver.set_page_load_timeout(ui_timeout_s())
 
     def __enter__(self):
         self.start()

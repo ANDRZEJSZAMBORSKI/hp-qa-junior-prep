@@ -47,7 +47,7 @@ def test_login_with_invalid_password(settings):
         login_page = LoginPage(sc.driver, settings.ui_base_url)
         login_page.open()
         with pytest.raises(
-                        UiError, match=rf"Login did not navigate to /secure \(still at: {re.escape(login_page.driver.current_url)}\)"
+                        UiError, match=rf"URL did not contain '/secure' \(still at: {re.escape(login_page.driver.current_url)}\)"
                            ) as exc_info:
             login_page.login("tomsmith", "WrongPassword!")
 
@@ -58,9 +58,9 @@ def test_login_with_invalid_password(settings):
   
         assert isinstance(exc_info.value, UiError)
         
-        assert str(exc_info.value) == f"Login did not navigate to /secure (still at: {login_page.driver.current_url})"
-        assert exc_info.value.args[0] == f"Login did not navigate to /secure (still at: {login_page.driver.current_url})"
-        assert exc_info.value.args == (f"Login did not navigate to /secure (still at: {login_page.driver.current_url})",)
+        assert str(exc_info.value) == f"URL did not contain '/secure' (still at: {login_page.driver.current_url})"
+        assert exc_info.value.args[0] == f"URL did not contain '/secure' (still at: {login_page.driver.current_url})"
+        assert exc_info.value.args == (f"URL did not contain '/secure' (still at: {login_page.driver.current_url})",)
         assert str(exc_info.value) == exc_info.value.args[0]
         
         assert isinstance(exc_info.value.__cause__, TimeoutException)
@@ -73,7 +73,7 @@ def test_login_with_invalid_username(settings):
         login_page = LoginPage(sc.driver, settings.ui_base_url)
         login_page.open()
         with pytest.raises(
-                        UiError, match=rf"Login did not navigate to /secure \(still at: {re.escape(login_page.driver.current_url)}\)"
+                        UiError, match=rf"URL did not contain '/secure' \(still at: {re.escape(login_page.driver.current_url)}\)"
                            ) as exc_info:
         
             login_page.login("wrong_user", "SuperSecretPassword!",)
@@ -85,9 +85,9 @@ def test_login_with_invalid_username(settings):
 
         assert isinstance(exc_info.value, UiError)
         
-        assert str(exc_info.value) == f"Login did not navigate to /secure (still at: {login_page.driver.current_url})"
-        assert exc_info.value.args[0] == f"Login did not navigate to /secure (still at: {login_page.driver.current_url})"
-        assert exc_info.value.args == (f"Login did not navigate to /secure (still at: {login_page.driver.current_url})",)
+        assert str(exc_info.value) == f"URL did not contain '/secure' (still at: {login_page.driver.current_url})"
+        assert exc_info.value.args[0] == f"URL did not contain '/secure' (still at: {login_page.driver.current_url})"
+        assert exc_info.value.args == (f"URL did not contain '/secure' (still at: {login_page.driver.current_url})",)
         assert str(exc_info.value) == exc_info.value.args[0]
         
         assert isinstance(exc_info.value.__cause__, TimeoutException)

@@ -13,6 +13,7 @@ class Settings:
     base_url: str
     timeout_s: float
     log_level: str
+    ui_timeout_s: float = 120.0
     ui_base_url: str | None = None
     api_token: str | None = None
 
@@ -23,6 +24,7 @@ def get_settings() -> Settings:
     log_level = os.getenv("LAB_FW_LOG_LEVEL", "INFO")
     ui_base_url = os.getenv("LAB_FW_UI_BASE_URL", "https://the-internet.herokuapp.com")
     api_token = os.getenv("LAB_FW_API_TOKEN")
+    raw_ui_timeout = os.getenv("LAB_FW_UI_TIMEOUT_S", "120.0")
     try:
         timeout_s = float(raw_timeout)
     except ValueError as exc:
@@ -31,10 +33,21 @@ def get_settings() -> Settings:
     if timeout_s <= 0:
         raise ConfigError(f"timeout_s must be > 0, got {timeout_s}")
 
+    try:
+        ui_timeout_s = float(raw_ui_timeout)
+    except ValueError as exc:
+        raise ConfigError(f"LAB_FW_UI_TIMEOUT_S must be float, got {raw_ui_timeout!r}") from exc
+
+    if ui_timeout_s <= 0:
+        raise ConfigError(f"ui_timeout_s must be > 0, got {ui_timeout_s}")
+
+    
+
     return Settings(
         base_url=base_url.rstrip("/"),
         timeout_s=timeout_s,
         log_level=log_level.upper(),
+        ui_timeout_s=ui_timeout_s,
         ui_base_url = ui_base_url.rstrip("/"),
         api_token=api_token,
     )

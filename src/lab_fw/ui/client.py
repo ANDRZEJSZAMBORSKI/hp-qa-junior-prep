@@ -3,6 +3,7 @@ from playwright.sync_api import Playwright, sync_playwright
 
 from lab_fw.core.errors import UiError
 from lab_fw.core.config import Settings
+from lab_fw.ui.timeouts import ui_timeout_ms
 
 class UIClient:
     def __init__(self, settings: Settings):
@@ -47,10 +48,13 @@ class UIClient:
         return self._page
 
     def start(self):
+        ms = ui_timeout_ms()
         self._playwright = sync_playwright().start()
         self._browser = self.playwright.chromium.launch()
         self._context = self.browser.new_context(base_url=self.settings.ui_base_url)
         self._page = self.context.new_page()
+        self._page.set_default_navigation_timeout(ms)
+        self._page.set_default_timeout(ms)
 
     def __enter__(self):
         self.start()

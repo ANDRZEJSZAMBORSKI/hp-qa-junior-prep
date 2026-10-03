@@ -4,6 +4,7 @@ import pytest
 from lab_fw.ui.client import UIClient
 from lab_fw.ui.pages.login_page import LoginPage
 from lab_fw.ui.pages.secure_page import SecurePage
+from lab_fw.core.errors import UiError
 
 @pytest.mark.ui
 def test_secure_page_after_login(settings):
@@ -46,7 +47,8 @@ def test_login_with_invalid_password(settings):
         login_page = LoginPage(ui.page)
         login_page.open()
 
-        login_page.login("tomsmith", "WrongPassword!")
+        with pytest.raises(UiError, match="URL did not match"):
+            login_page.login("tomsmith", "WrongPassword!")
 
         assert login_page.get_url() == f"{settings.ui_base_url}/login"
         assert login_page.is_login_error_message_visible(
@@ -59,10 +61,11 @@ def test_login_with_invalid_username(settings):
         login_page = LoginPage(ui.page)
         login_page.open()
 
-        login_page.login(
-            "wrong_user",
-            "SuperSecretPassword!",
-        )
+        with pytest.raises(UiError, match="URL did not match"):
+            login_page.login(
+                "wrong_user",
+                "SuperSecretPassword!",
+            )
 
         assert login_page.get_url() == f"{settings.ui_base_url}/login"
         assert login_page.is_login_error_message_visible(
