@@ -1,6 +1,5 @@
-
 import pytest
-
+from unittest.mock import MagicMock, patch
 from lab_fw.ui.client import UIClient
 from lab_fw.ui.pages.login_page import LoginPage
 from lab_fw.ui.pages.secure_page import SecurePage
@@ -18,7 +17,7 @@ def test_secure_page_after_login(settings):
         )
         assert login_page.is_login_success_message_visible("You logged into a secure area!")
         assert secure_page.get_url() == f"{settings.ui_base_url}/secure"
-        assert secure_page.is_logout_success_message_visible(
+        assert secure_page.is_login_success_message_visible(
             "You logged into a secure area!"
         )
 
@@ -36,7 +35,7 @@ def test_secure_page_logout(settings):
         assert login_page.is_login_success_message_visible('You logged into a secure area!')
         login_page = secure_page.logout()
         assert secure_page.is_logout_success_message_visible("You logged out of the secure area!")
-        assert login_page.is_login_success_message_visible("You logged out of the secure area!")
+        assert login_page.is_logout_success_message_visible("You logged out of the secure area!")
         assert login_page.get_url() == f"{settings.ui_base_url}/login"
         assert login_page.is_username_visible()
         assert login_page.is_password_visible()
@@ -97,7 +96,7 @@ def test_login_logout_login_again(settings):
         )
 
         assert secure_page.get_url() == f"{settings.ui_base_url}/secure"
-        assert secure_page.is_logout_success_message_visible(
+        assert secure_page.is_login_success_message_visible(
             "You logged into a secure area!"
         )
 
@@ -116,7 +115,7 @@ def test_secure_page_after_login_fixture(ui_client):
         "You logged into a secure area!"
     )
     assert secure_page.get_url() == f"{ui_client.settings.ui_base_url}/secure"
-    assert secure_page.is_logout_success_message_visible(
+    assert secure_page.is_login_success_message_visible(
         "You logged into a secure area!"
     )
 
@@ -140,7 +139,7 @@ def test_secure_page_logout_fixture(ui_client):
     assert secure_page.is_logout_success_message_visible(
         "You logged out of the secure area!"
     )
-    assert login_page.is_login_success_message_visible(
+    assert login_page.is_logout_success_message_visible(
         "You logged out of the secure area!"
     )
     assert login_page.get_url() == f"{ui_client.settings.ui_base_url}/login"
@@ -166,7 +165,7 @@ def test_secure_page_after_login_fixture_module(ui_client_module):
         "You logged into a secure area!"
     )
     assert secure_page.get_url() == f"{ui_client_module.settings.ui_base_url}/secure"
-    assert secure_page.is_logout_success_message_visible(
+    assert secure_page.is_login_success_message_visible(
         "You logged into a secure area!"
     )
 
@@ -188,9 +187,83 @@ def test_secure_page_logout_fixture_module(ui_client_module):
     assert secure_page.is_logout_success_message_visible(
         "You logged out of the secure area!"
     )
-    assert login_page.is_login_success_message_visible(
+    assert login_page.is_logout_success_message_visible(
         "You logged out of the secure area!"
     )
     assert login_page.get_url() == f"{ui_client_module.settings.ui_base_url}/login"
     assert login_page.is_username_visible()
     assert login_page.is_password_visible()
+
+        
+@pytest.mark.ui
+def test_login_expect_failure_with_invalid_password(settings):
+    with UIClient(settings) as ui:
+        login_page = LoginPage(ui.page)
+        login_page.open()
+        login_page.login_expect_failure("tomsmith", "WrongPassword!")
+
+        assert login_page.get_url() == f"{settings.ui_base_url}/login"
+        assert login_page.is_login_error_message_visible(
+            "Your password is invalid!"
+        )
+
+@pytest.mark.ui
+def test_login_expect_failure_with_invalid_username(settings):
+    with UIClient(settings) as ui:
+        login_page = LoginPage(ui.page)
+        login_page.open()
+        login_page.login_expect_failure(
+                "wrong_user",
+                "SuperSecretPassword!",
+            )
+
+        assert login_page.get_url() == f"{settings.ui_base_url}/login"
+        assert login_page.is_login_error_message_visible(
+            "Your username is invalid!"
+        )
+
+
+@pytest.mark.ui
+def test_login_expect_failure_with_good_passusername(settings):
+    with UIClient(settings) as ui:
+        login_page = LoginPage(ui.page)
+        login_page.open()
+        with pytest.raises(UiError, match=r"Login unexpectedly reached /secure \(at:"):
+            login_page.login_expect_failure(
+                    "tomsmith", "SuperSecretPassword!",
+                )
+
+        assert login_page.get_url() == f"{settings.ui_base_url}/secure"
+        assert login_page.is_login_success_message_visible(
+            "You logged into a secure area!"
+        )
+
+@pytest.mark.ui
+def test_logout_raises_when_url_not_login(settings):
+    with UIClient(settings) as ui:
+        login_page = LoginPage(ui.page)
+        login_page.open()
+        secure_page = login_page.login("tomsmith", "SuperSecretPassword!")
+
+        with patch.object(
+            secure_page.wait,
+            "wait_url",
+            side_effect=UiError("URL did not match '**/login' (still at: https://the-internet.herokuapp.com/secure)"),
+        ):
+            with pytest.raises(UiError, match="URL did not match"):
+                secure_page.logout()
+
+@pytest.mark.smoke
+def test_logout_raises_when_url_not_login_only_mock():
+    page = MagicMock()
+    secure = SecurePage(page)
+    secure.wait = MagicMock()
+    secure._logout_button = MagicMock()
+    secure.wait.wait_visible.return_value = secure._logout_button
+    secure.wait.wait_url.side_effect = UiError("URL did not match '**/login' (still at: x)")
+
+    with pytest.raises(UiError, match="URL did not match"):
+        secure.logout()
+    secure._logout_button.click.assert_called_once()
+
+       

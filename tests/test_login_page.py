@@ -32,7 +32,7 @@ def test_successful_login_return_securepage(settings):
         assert login_page.get_url() == f"{settings.ui_base_url}/secure"
         assert login_page.is_login_success_message_visible('You logged into a secure area!')
         assert securepage.get_url() == f"{settings.ui_base_url}/secure"
-        assert securepage.is_logout_success_message_visible('You logged into a secure area!')
+        assert securepage.is_login_success_message_visible('You logged into a secure area!')
 
 @pytest.mark.ui
 def test_login_page_fields_fixture(ui_client):

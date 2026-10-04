@@ -28,6 +28,9 @@ class SecurePage(BasePageSelenium):
         from lab_fw.ui.selenium_pages.login_page import LoginPage
         return LoginPage(self.driver, self.base_url)
 
+    def is_login_success_message_visible(self, text: str) -> bool:
+        return self.flash.is_visible(text)
+
     def is_logout_success_message_visible(self, text: str) -> bool:
         return self.flash.is_visible(text)
 

@@ -2,7 +2,6 @@ import pytest
 from lab_fw.ui.selenium_client import SeleniumClient
 from lab_fw.ui.selenium_pages.login_page import LoginPage
 from selenium.webdriver.common.by import By
-from selenium.common.exceptions import TimeoutException
 from lab_fw.ui.components.selenium_wait import SeleniumWait
 from selenium.webdriver.remote.webelement import WebElement
 from lab_fw.core.errors import UiError
@@ -105,3 +104,45 @@ def test_selenium_wait_default_timeout(settings):
     with SeleniumClient(settings) as sc:
         wait = SeleniumWait(sc.driver)
         assert wait.timeout == ui_timeout_s()
+
+@pytest.mark.selenium
+def test_selenium_is_visible_timeout_wrong_locator(settings):
+    with SeleniumClient(settings) as sc:
+        sc.driver.get(f"{sc.settings.ui_base_url}/login")
+        wait = SeleniumWait(sc.driver, timeout=1)
+        assert not wait.is_visible((By.ID, "hello"))
+
+
+@pytest.mark.selenium
+def test_selenium_visible_timeout_wrong_locator(settings):
+    with SeleniumClient(settings) as sc:
+        sc.driver.get(f"{sc.settings.ui_base_url}/login")
+        wait = SeleniumWait(sc.driver, timeout=1)
+        with pytest.raises(UiError, match="failed to become visible"):
+            wait.visible((By.ID, "hello"))
+
+
+@pytest.mark.selenium
+def test_selenium_is_clickable_timeout_wrong_locator(settings):
+    with SeleniumClient(settings) as sc:
+        sc.driver.get(f"{sc.settings.ui_base_url}/login")
+        wait = SeleniumWait(sc.driver, timeout=1)
+        assert not wait.is_clickable((By.ID, "hello"))
+
+
+@pytest.mark.selenium
+def test_selenium_clickable_timeout_wrong_locator(settings):
+    with SeleniumClient(settings) as sc:
+        sc.driver.get(f"{sc.settings.ui_base_url}/login")
+        wait = SeleniumWait(sc.driver, timeout=1)
+        with pytest.raises(UiError, match="failed to become clickable"):
+            wait.clickable((By.ID, "hello"))
+
+
+@pytest.mark.selenium
+def test_selenium_url_contains_timeout_wrong_url(settings):
+    with SeleniumClient(settings) as sc:
+        sc.driver.get(f"{sc.settings.ui_base_url}/login")
+        wait = SeleniumWait(sc.driver, timeout=1)
+        with pytest.raises(UiError, match="URL did not contain"):
+            wait.url_contains("/hello")

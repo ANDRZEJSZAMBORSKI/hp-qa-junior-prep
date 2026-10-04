@@ -21,5 +21,8 @@ class SecurePage(BasePage):
         from lab_fw.ui.pages.login_page import LoginPage
         return LoginPage(self.page)
         
+    def is_login_success_message_visible(self, text: str):
+        return self.flash.is_visible(text)
+
     def is_logout_success_message_visible(self, text: str):
         return self.flash.is_visible(text)

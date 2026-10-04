@@ -71,3 +71,28 @@ def test_playwright_wait_default_timeout(settings):
     with UIClient(settings) as ui:
         wait = PlaywrightWait(ui.page)
         assert wait.timeout == ui_timeout_ms()
+
+@pytest.mark.ui
+def test_wait_visible_timeout_wrong_locator(settings):
+    with UIClient(settings) as ui:
+        ui.page.goto("/login", wait_until="domcontentloaded", timeout=ui_timeout_ms())
+        wait = PlaywrightWait(ui.page, timeout=1_000)
+        with pytest.raises(UiError, match="failed to become visible"):
+            wait.wait_visible(ui.page.locator("#hello"))
+
+@pytest.mark.ui
+def test_is_visible_timeout_wrong_locator(settings):
+    with UIClient(settings) as ui:
+        ui.page.goto("/login", wait_until="domcontentloaded", timeout=ui_timeout_ms())
+        wait = PlaywrightWait(ui.page, timeout=1_000)
+        assert not wait.is_visible(ui.page.locator("#hello"))
+
+@pytest.mark.ui
+def test_wait_url_timeout_wrong_url(settings):
+    with UIClient(settings) as ui:
+        ui.page.goto("/login", wait_until="domcontentloaded", timeout=ui_timeout_ms())
+        wait = PlaywrightWait(ui.page, timeout=1_000)
+        with pytest.raises(UiError, match="URL did not match"):
+            wait.wait_url("**/hello")
+
+            

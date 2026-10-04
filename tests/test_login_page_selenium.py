@@ -32,7 +32,7 @@ def test_successful_login_return_securepage(settings):
         assert login_page.get_url() == f"{settings.ui_base_url}/secure"
         assert login_page.is_login_success_message_visible('You logged into a secure area!')
         assert securepage.get_url() == f"{settings.ui_base_url}/secure"
-        assert securepage.is_logout_success_message_visible('You logged into a secure area!')
+        assert securepage.is_login_success_message_visible('You logged into a secure area!')
 
 @pytest.mark.selenium
 def test_login_page_fields_fixture(selenium_client):
@@ -74,3 +74,10 @@ def test_successful_login_fixture_module(selenium_client_module):
 
     assert login_page.get_url() == f"{selenium_client_module.settings.ui_base_url}/secure"
     assert login_page.is_login_success_message_visible("You logged into a secure area!")
+
+@pytest.mark.selenium
+def test_open_waits_for_username(settings):
+    with SeleniumClient(settings) as sc:
+        login_page = LoginPage(sc.driver, sc.settings.ui_base_url)
+        login_page.open()
+        assert login_page.is_username_visible()

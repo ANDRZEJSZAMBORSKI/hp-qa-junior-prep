@@ -1,6 +1,8 @@
 from unittest.mock import MagicMock, patch
 import pytest
 from lab_fw.ui.client import UIClient
+from lab_fw.ui.selenium_client import SeleniumClient
+from lab_fw.ui.timeouts import ui_timeout_s
 
 @pytest.mark.ui
 def test_ui_client(settings):
@@ -25,3 +27,16 @@ def test_ui_client_applies_ui_timeout(settings):
         page.set_default_navigation_timeout.assert_called_with(ms)
         page.set_default_timeout.assert_called_with(ms)
         ui.close()
+
+
+@pytest.mark.selenium
+def test_selenium_client_applies_ui_timeout(settings):
+    with patch("lab_fw.ui.selenium_client.webdriver") as sp:
+        options = MagicMock()
+        driver = MagicMock()
+        sp.ChromeOptions.return_value = options
+        sp.Chrome.return_value = driver
+        sc = SeleniumClient(settings)
+        sc.start()
+        driver.set_page_load_timeout.assert_called_with(ui_timeout_s())
+        sc.close()
