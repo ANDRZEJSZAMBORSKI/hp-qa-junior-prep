@@ -32,4 +32,4 @@ jobs:
           echo "LAB_FW_API_TOKEN length: ${#LAB_FW_API_TOKEN}"
 
       - name: Run tests (no UI)
-        run: pytest -m "not ui and not selenium" -q --tb=line
+        run: pytest -m "not ui and not selenium" -q -n auto --tb=line
