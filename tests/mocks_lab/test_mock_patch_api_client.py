@@ -3,6 +3,7 @@ import httpx
 from lab_fw.api.client import ApiClient
 from lab_fw.core.errors import ApiError
 import pytest
+from lab_fw.core.config import Settings
 
 @pytest.mark.mocks
 @pytest.mark.mocks_pure
@@ -39,8 +40,13 @@ def test_patch_MagicMock():
 @pytest.mark.mocks
 @pytest.mark.mocks_pure
 def test_patch_mock_Client():
+    test_settings = Settings(
+                                base_url="https://example.com",
+                                timeout_s=5.0,
+                                log_level="INFO",
+                            )
     with patch("lab_fw.api.client.httpx.Client") as mock_client:
-        with ApiClient() as client:
+        with ApiClient(test_settings) as client:
             fake_response = MagicMock()
             fake_response.status_code = 200
             fake_response.json.return_value = {"ok": True}
