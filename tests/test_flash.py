@@ -39,7 +39,7 @@ def test_flash_is_visible_uses_ui_timeout_ms():
     page = MagicMock()
     flash_loc = MagicMock()
     page.locator.return_value = flash_loc
-    flash_loc.wait_for.side_effect = PlaywrightTimeoutError()
+    flash_loc.wait_for.side_effect = PlaywrightTimeoutError("timeout")
     with patch("lab_fw.ui.components.flash_message.ui_timeout_ms", return_value = 90_000):
         result = FlashMessage(page).is_visible("hello")
 
