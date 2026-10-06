@@ -46,6 +46,7 @@ markers = [
     "api: API authentication tests",
     "ui: UI tests",
     "selenium: selenium tests",
+    "compose: tests that require Docker Compose services",
 ]
 [project.entry-points.pytest11]
 lab_fw = "lab_fw.pytest_plugin.plugin"

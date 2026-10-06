@@ -32,7 +32,7 @@ jobs:
           echo "LAB_FW_API_TOKEN length: ${#LAB_FW_API_TOKEN}"
 
       - name: Run tests (no UI)
-        run: pytest -m "not ui and not selenium" -q -n auto --alluredir=allure-results --tb=line
+        run: pytest -m "not ui and not selenium and not compose" -q -n auto --alluredir=allure-results --tb=line
 
       - name: Upload Allure results
         if: always()
