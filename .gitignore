@@ -30,3 +30,10 @@ allure-report/
 Thumbs.db
 .idea/
 .vscode/
+
+# Local machine CA certificates
+avast-root.cer
+avast-root.crt
+
+# Local Docker configuration
+Dockerfile.local

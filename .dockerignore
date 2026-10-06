@@ -1,0 +1,5 @@
+.venv
+.git
+.pytest_cache
+allure-results
+allure-report
