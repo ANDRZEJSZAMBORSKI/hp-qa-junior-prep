@@ -1,0 +1,16 @@
+services:
+  mock-api:
+    image: mockserver/mockserver:5.15.0
+    ports:
+      - "1080:1080"
+
+  tests:
+    build:
+      context: .
+      dockerfile: Dockerfile          
+      target: ${DOCKER_TARGET:-local}
+    environment:
+      LAB_FW_API_TOKEN: ci-demo-token
+      #LAB_FW_BASE_URL: http://mock-api:1080
+    depends_on:
+      - mock-api

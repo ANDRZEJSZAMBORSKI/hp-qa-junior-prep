@@ -14,8 +14,13 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Build CI image
-        run: docker build --target ci -t hp-qa-junior-prep:ci .
+      #- name: Build CI image
+      #  run: docker build --target ci -t hp-qa-junior-prep:ci .
 
-      - name: Run tests
-        run: docker run --rm hp-qa-junior-prep:ci
+      #- name: Run tests
+      #  run: docker run --rm hp-qa-junior-prep:ci
+
+      - name: Run Docker Compose
+        run: docker compose up --build --abort-on-container-exit
+        env:
+          DOCKER_TARGET: ci
