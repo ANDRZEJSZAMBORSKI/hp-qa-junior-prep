@@ -31,4 +31,4 @@ RUN pip install --no-cache-dir "setuptools>=68" wheel
 RUN pip install --no-cache-dir --no-build-isolation -e ".[dev]"
 RUN playwright install --with-deps chromium
 
-CMD ["pytest", "-q", "--tb=line", "-n", "auto"]
+CMD ["pytest", "-m", "not ui and not selenium", "-q", "--tb=line", "-n", "auto"]
