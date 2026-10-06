@@ -20,6 +20,20 @@ dev = [
     "playwright>=1.0",
     "selenium>=4.0",
 ]
+dev_slim = [
+    "pytest>=8.0",
+    "pytest-xdist>=3.5",
+    "allure-pytest>=2.13",
+    "pydantic>=2.0",
+    "playwright>=1.0",
+    "selenium>=4.0",
+]
+playwright = [
+    "playwright>=1.0",
+]
+selenium = [
+    "selenium>=4.0",
+]
 [tool.pytest.ini_options]
 markers = [
     "smoke: fast basic checks of lab_fw helpers",
