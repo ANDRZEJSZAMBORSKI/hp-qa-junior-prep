@@ -10,7 +10,7 @@ services:
       dockerfile: Dockerfile          
       target: ${DOCKER_TARGET:-ci}
     environment:
-      LAB_FW_API_TOKEN: ci-demo-token
+      LAB_FW_API_TOKEN: ${LAB_FW_API_TOKEN:-ci-demo-token}
       #LAB_FW_BASE_URL: http://mock-api:1080
     depends_on:
       - mock-api
