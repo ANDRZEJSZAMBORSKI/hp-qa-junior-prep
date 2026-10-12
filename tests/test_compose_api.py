@@ -158,3 +158,21 @@ def test_mock_api_timeout(reset_mockserver):
             client.get("/slow")
 
     assert isinstance(exc_info.value.__cause__, httpx.TimeoutException)
+    assert isinstance(exc_info.value.__cause__, httpx.ReadTimeout)       # True
+    assert isinstance(exc_info.value.__cause__, httpx.TimeoutException)  # True
+    assert isinstance(exc_info.value.__cause__, httpx.HTTPError)         # True
+
+    verify_response = httpx.put(
+            "http://mock-api:1080/mockserver/verify",
+            json={
+                "httpRequest": {
+                    "method": "GET",
+                    "path": "/slow",
+                },
+                "times": {
+                    "atLeast": 1,
+                },
+            },
+        )
+    
+    assert verify_response.status_code == 202

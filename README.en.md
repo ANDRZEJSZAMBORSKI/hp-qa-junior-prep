@@ -170,7 +170,7 @@ In `tests/test_compose_api.py` (`compose` marker, same `reset_mockserver`):
 | Test | MockServer | What we assert |
 |------|------------|----------------|
 | `test_mock_api_auth_fail` | `GET /protected` → **401** + JSON `error` | client sees status/body/Content-Type without a real IdP |
-| `test_mock_api_timeout` | `GET /slow` with 1000 ms `delay`, `timeout_s=0.2` | `ApiClient` raises `ApiError` whose `__cause__` is `httpx.TimeoutException` |
+| `test_mock_api_timeout` | `GET /slow` with 1000 ms `delay`, `timeout_s=0.2` | `ApiError`; `__cause__` is `ReadTimeout` ⊂ `TimeoutException` ⊂ `HTTPError`; then `/mockserver/verify` → **202** |
 
 Client policy: on 4xx/5xx, `get`/`post` **return** `Response` (optional `ensure_success` → `HttpStatusError`). Transport failures (timeout, etc.) always surface as `ApiError`.
 
