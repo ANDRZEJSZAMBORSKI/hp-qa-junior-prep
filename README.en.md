@@ -204,6 +204,72 @@ Client policy: on 4xx/5xx, `get`/`post` **return** `Response` (optional `ensure_
 
 **Quick workflow:** test fails → read the traceback → determine whether it is an HTTP response or a transport error → for Compose failures, inspect `tests`, then `mock-api` → in CI, open the failed step and download the available artifact.
 
+## Distributed systems: theory and terms (lab L1)
+
+Mid-level glossary. Where useful — links to `lab_fw` (retry, timeout, `ApiError`, Compose/CI).
+
+### 1. Async communication
+
+The sender does not have to wait for the whole operation to finish before continuing; the result may arrive later. Async is **not** the same as a queue — a queue is only one mechanism.
+
+**QA:** delays, no immediate response, duplicate events, background processing failures.
+
+**Example:** API returns `202 Accepted` (job accepted); the order appears later — assert both `202` and the later state.
+
+### 2. Queue / event / message broker
+
+| Term | Meaning | QA |
+|------|---------|-----|
+| **Queue** | messages waiting to be processed | no loss, correct handling, no bad side effects on retry |
+| **Event** | something that happened (e.g. `OrderCreated`) | fires under the right conditions with correct data |
+| **Message broker** | routes messages between services (RabbitMQ, Kafka) | delivery, routing, errors, redelivery |
+
+### 3. Retry vs timeout
+
+- **Retry** — do we try again after a transient failure (attempt limit; do not blindly retry e.g. a typical `404`).
+- **Timeout** — how long we are willing to wait (connect / read / overall deadline).
+
+Timeout may trigger retry, but they are different mechanisms. After a client timeout you **do not know** whether the server completed the work — blind retry is unsafe without idempotency.
+
+In `lab_fw`: retry policy; after attempts are exhausted — expected `ApiError`.
+
+### 4. Timeout
+
+Max wait for connection, response data, or the whole operation (including delays between retries). Three 5s attempts with pauses is not “only 5s total”.
+
+**QA:** hung calls do not block forever; wait failures are predictable (`ApiError` + `__cause__` such as `TimeoutException`).
+
+### 5. Idempotency
+
+Repeating an operation does not create an **extra effect** beyond doing it once. Responses need not be identical JSON (metadata may differ).
+
+An **Idempotency-Key** helps the server recognise the same logical operation. GET/PUT/DELETE are typically idempotent by HTTP semantics; POST usually is not (depends on the API).
+
+**Example:** retrying payment creation with the same key must not create a second payment.
+
+### 6. Eventual consistency
+
+Components may briefly diverge; with no new writes they converge. **QA:** do not fail every short lag; catch cases that never converge in time. Prefer **polling with a deadline**, not a blind `sleep`.
+
+### 7. Logs vs metrics vs traces
+
+| | Question | Example |
+|--|----------|---------|
+| **Logs** | what happened? | `ApiError: HTTP 500` + method/URL/time |
+| **Metrics** | how often / how well? | error rate, latency p95, retry count |
+| **Traces** | where in the service chain? | gateway 20 ms → orders 50 ms → payments 2 s |
+
+### 8. Correlation / Request / Trace ID
+
+IDs that tie records for one request or business flow. Request ID often maps to one HTTP call; Correlation ID spans related steps; Trace ID spans distributed tracing. On retry, policy may mint a new Request ID while keeping Correlation/Trace ID.
+
+### 9. Env vs build (“locally green ≠ CI”)
+
+- **Env** — URLs, tokens, timeouts, run mode.
+- **Build** — code, dependencies, Docker image.
+
+Local green does not prove CI green. Control: Python/dependency versions, secrets/env, image contents, mocks/external services, the pytest command in the workflow. In this repo Compose aligns services; CI checks reproducibility.
+
 ## Allure
 
 ```bash
