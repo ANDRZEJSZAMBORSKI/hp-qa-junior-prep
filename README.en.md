@@ -174,6 +174,36 @@ In `tests/test_compose_api.py` (`compose` marker, same `reset_mockserver`):
 
 Client policy: on 4xx/5xx, `get`/`post` **return** `Response` (optional `ensure_success` → `HttpStatusError`). Transport failures (timeout, etc.) always surface as `ApiError`.
 
+### Test failure troubleshooting (lab I4)
+
+| Symptom | Where to look | What to check |
+|---|---|---|
+| A local test failed | `pytest` terminal output | Test name, traceback, assertion and actual result |
+| Framework logs are needed | `lab_fw` logs; `LAB_FW_LOG_LEVEL` setting | Log level and API client messages |
+| HTTP request/response details are needed | Allure report / attachments | `response` and `status_error` attachments, if generated |
+| A Compose test failed | `docker compose logs tests` | Pytest output, traceback, configuration and container environment |
+| MockServer interaction failed | `docker compose logs mock-api` | Whether the request arrived, whether the expectation was registered and which response was returned |
+| GitHub Actions failed | Actions → workflow → job → failed step | For `tests`, inspect the pytest step and `allure-results` artifact; for `CI`, inspect `Run Docker Compose` |
+| MockServer expectation registration failed | Registration output and `mock-api` logs | Registration HTTP status (usually `201`) and response body |
+| MockServer verification failed | `/mockserver/verify` output and `mock-api` logs | Verification HTTP status (expected `202`) and response body |
+
+**Common symptoms**
+
+- **HTTP 4xx/5xx:** `get()` / `post()` return a `Response`. Check the status, response body and authentication. `ensure_success()` raises `HttpStatusError` for an unsuccessful status.
+- **Timeout / `ApiError`:** Check the timeout, endpoint availability and exception chain (`__cause__`). The client wraps transport errors in `ApiError`.
+- **Expectation not registered:** Check the MockServer registration response and logs.
+- **`/mockserver/verify` did not return `202`:** Check whether the actual request matches the registered expectation and whether it was sent.
+
+**Environment variables and markers**
+
+- `LAB_FW_API_TOKEN` — verify that the token is present and correct.
+- `http://mock-api:1080` — MockServer address from the `tests` container; use the Compose service name `mock-api`.
+- `LAB_FW_BASE_URL` — avoid setting it globally for Compose unless necessary; regular tests use their own configuration.
+- `@pytest.mark.compose` — marker for integration tests that require MockServer.
+- On the Avast-protected laptop, use `DOCKER_TARGET=local` when the corresponding certificate is required.
+
+**Quick workflow:** test fails → read the traceback → determine whether it is an HTTP response or a transport error → for Compose failures, inspect `tests`, then `mock-api` → in CI, open the failed step and download the available artifact.
+
 ## Allure
 
 ```bash
