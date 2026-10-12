@@ -38,6 +38,7 @@ def test_mock_api_users():
 
     assert response.status_code == 200
     assert response.json() == {"id": 1, "name": "Alice"}
+    assert response.headers["content-type"] == "application/json"
 
 @pytest.mark.compose
 def test_mock_api_is_reachable():
