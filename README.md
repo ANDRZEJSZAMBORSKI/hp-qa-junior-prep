@@ -109,6 +109,47 @@ DOCKER_TARGET=local docker compose up --build --abort-on-container-exit
 | workflow **CI** / локальный compose | да | бегут |
 | workflow **tests** (голый runner) | нет | исключены (`not compose`) |
 
+## Схема взаимодействия API (лаба I1)
+
+В проекте два режима тестирования API: изолированный с `httpx.MockTransport` и интеграционный с отдельным сервисом MockServer через Docker Compose. Реальный cloud/API в этих прогонах **не** вызывается — мок имитирует его HTTP-контракт (статус, JSON, заголовки).
+
+### Режим 1. Обычные тесты
+
+```mermaid
+flowchart TD
+    A[pytest] --> B[API test]
+    B --> C[ApiClient]
+    C --> D[httpx.MockTransport]
+    D --> E[Mock HTTP response]
+```
+
+`httpx.MockTransport` работает внутри Python-процесса: проверяем поведение HTTP-клиента без отдельного сервера и без реального сетевого обращения к API.
+
+Workflow **tests** исключает маркеры `compose` — нужные сервисы этим workflow не поднимаются.
+
+### Режим 2. Docker Compose / CI
+
+```mermaid
+flowchart TD
+    A[Docker Compose] --> B[tests container]
+    A --> C[mock-api container]
+    B --> D[pytest]
+    D --> E[ApiClient]
+    E -->|HTTP GET /users/1| F[mock-api:1080]
+    F -->|HTTP 200 + JSON + Content-Type| E
+```
+
+Тесты идут в контейнере `tests`, MockServer — в `mock-api`. Связь по внутренней сети Compose: `http://mock-api:1080`.
+
+Workflow **CI** поднимает Compose с `DOCKER_TARGET=ci`, чтобы интеграционные тесты могли ходить в MockServer.
+
+### Зачем оба уровня
+
+- **MockTransport** — быстро и изолированно: ответы, ошибки, контракт клиентского кода; легче локализовать баг в логике `ApiClient`.
+- **MockServer** — сетевое взаимодействие между контейнерами и настройки интеграционного окружения.
+
+Оба подхода снижают зависимость от доступности реального внешнего API.
+
 ## Allure
 
 ```bash

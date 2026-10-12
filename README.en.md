@@ -98,6 +98,47 @@ Services: `mock-api` (MockServer `:1080`) + `tests` (build + pytest).
 | **CI** / local compose | yes | run |
 | **tests** workflow | no | excluded (`not compose`) |
 
+## API interaction diagram (lab I1)
+
+The project has two API test modes: in-process `httpx.MockTransport`, and integration with a MockServer service via Docker Compose. Real cloud/API is **not** called in these runs — the mock stands in for its HTTP contract (status, JSON, headers).
+
+### Mode 1. Regular tests
+
+```mermaid
+flowchart TD
+    A[pytest] --> B[API test]
+    B --> C[ApiClient]
+    C --> D[httpx.MockTransport]
+    D --> E[Mock HTTP response]
+```
+
+`httpx.MockTransport` runs inside the Python process: exercise the HTTP client without a separate server or a real network call to an API.
+
+The **tests** workflow excludes the `compose` marker — those services are not started there.
+
+### Mode 2. Docker Compose / CI
+
+```mermaid
+flowchart TD
+    A[Docker Compose] --> B[tests container]
+    A --> C[mock-api container]
+    B --> D[pytest]
+    D --> E[ApiClient]
+    E -->|HTTP GET /users/1| F[mock-api:1080]
+    F -->|HTTP 200 + JSON + Content-Type| E
+```
+
+Tests run in the `tests` container; MockServer runs in `mock-api`. They talk on the Compose network at `http://mock-api:1080`.
+
+The **CI** workflow starts Compose with `DOCKER_TARGET=ci` so integration tests can reach MockServer.
+
+### Why both levels
+
+- **MockTransport** — fast isolation: responses, errors, client-side contract checks; easier to pin bugs in `ApiClient` logic.
+- **MockServer** — real HTTP between containers and integration-environment wiring.
+
+Both reduce dependence on a live external API.
+
 ## Allure
 
 ```bash
