@@ -139,6 +139,30 @@ The **CI** workflow starts Compose with `DOCKER_TARGET=ci` so integration tests 
 
 Both reduce dependence on a live external API.
 
+### Mocking strategy (lab I2)
+
+| | `httpx.MockTransport` | MockServer |
+|--|------------------------|------------|
+| Where | inside the Python process | separate service (`mock-api`) |
+| Network | not required | real HTTP on the Docker network |
+| Goal | unit/API client tests | container-to-container integration |
+| Examples | `tests/mocks_lab/` | `tests/test_compose_api.py` |
+
+Compose contract in `test_mock_api_users`:
+
+1. fixture `reset_mockserver` — `PUT /mockserver/reset` before and after the test (state isolation);
+2. `PUT /mockserver/expectation` → **201** (rule accepted);
+3. `ApiClient.get` → **200**, JSON body, `Content-Type` contains `application/json`;
+4. `PUT /mockserver/verify` → **202** (request actually matched the expectation).
+
+The `compose` marker does not start infrastructure — check the run command:
+
+- **tests** workflow: `pytest -m "not ui and not selenium and not compose"` (no MockServer);
+- **Dockerfile CMD**: `not ui and not selenium` (no `not compose`) — under Compose, `mock-api` is present so integration tests run;
+- targeted: `pytest -m compose` inside the `tests` service.
+
+`LAB_FW_BASE_URL` is not set globally in Compose: compose tests pass `base_url="http://mock-api:1080"` explicitly via `Settings`.
+
 ## Allure
 
 ```bash

@@ -139,6 +139,30 @@ Workflow **CI** uruchamia Compose z `DOCKER_TARGET=ci`, żeby testy integracyjne
 
 Oba podejścia ograniczają zależność od dostępności prawdziwego zewnętrznego API.
 
+### Strategia mocków (lab I2)
+
+| | `httpx.MockTransport` | MockServer |
+|--|------------------------|------------|
+| Gdzie działa | w procesie Pythona | osobna usługa (`mock-api`) |
+| Sieć | niepotrzebna | prawdziwy HTTP w sieci Dockera |
+| Cel | testy unit/API klienta | integracja kontenerów |
+| Przykłady | `tests/mocks_lab/` | `tests/test_compose_api.py` |
+
+Kontrakt Compose w `test_mock_api_users`:
+
+1. fixture `reset_mockserver` — `PUT /mockserver/reset` przed i po teście (izolacja stanu);
+2. `PUT /mockserver/expectation` → **201** (reguła przyjęta);
+3. `ApiClient.get` → **200**, ciało JSON, `Content-Type` zawiera `application/json`;
+4. `PUT /mockserver/verify` → **202** (żądanie faktycznie trafiło w expectation).
+
+Marker `compose` sam nie uruchamia infrastruktury — patrz komenda:
+
+- workflow **tests**: `pytest -m "not ui and not selenium and not compose"` (bez MockServer);
+- **Dockerfile CMD**: `not ui and not selenium` (bez `not compose`) — w Compose jest `mock-api`, więc testy integracyjne lecą;
+- celowane: `pytest -m compose` w serwisie `tests`.
+
+`LAB_FW_BASE_URL` nie ustawiamy globalnie w Compose: testy compose podają `base_url="http://mock-api:1080"` wprost w `Settings`.
+
 ## Allure
 
 ```bash

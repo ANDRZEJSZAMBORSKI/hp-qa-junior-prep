@@ -150,6 +150,30 @@ Workflow **CI** поднимает Compose с `DOCKER_TARGET=ci`, чтобы и�
 
 Оба подхода снижают зависимость от доступности реального внешнего API.
 
+### Стратегия моков (лаба I2)
+
+| | `httpx.MockTransport` | MockServer |
+|--|------------------------|------------|
+| Где работает | внутри процесса Python | отдельный сервис (`mock-api`) |
+| Сеть | не нужна | реальный HTTP в Docker-сети |
+| Цель | unit/API-тесты клиента | интеграция контейнеров |
+| Примеры | `tests/mocks_lab/` | `tests/test_compose_api.py` |
+
+Compose-контракт в `test_mock_api_users`:
+
+1. fixture `reset_mockserver` — `PUT /mockserver/reset` до и после теста (изоляция состояния);
+2. `PUT /mockserver/expectation` → **201** (правило принято);
+3. `ApiClient.get` → **200**, JSON-тело, `Content-Type` содержит `application/json`;
+4. `PUT /mockserver/verify` → **202** (запрос реально сматчился с expectation).
+
+Маркер `compose` сам инфраструктуру не поднимает — смотри команду запуска:
+
+- workflow **tests**: `pytest -m "not ui and not selenium and not compose"` (без MockServer);
+- **Dockerfile CMD**: `not ui and not selenium` (без `not compose`) — в Compose рядом есть `mock-api`, интеграционные тесты бегут;
+- точечно: `pytest -m compose` внутри сервиса `tests`.
+
+`LAB_FW_BASE_URL` в Compose глобально не задаём: compose-тесты передают `base_url="http://mock-api:1080"` явно в `Settings`.
+
 ## Allure
 
 ```bash
