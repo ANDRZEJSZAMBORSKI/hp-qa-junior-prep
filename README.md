@@ -174,6 +174,17 @@ Compose-контракт в `test_mock_api_users`:
 
 `LAB_FW_BASE_URL` в Compose глобально не задаём: compose-тесты передают `base_url="http://mock-api:1080"` явно в `Settings`.
 
+### Негативные интеграционные сценарии (лаба I3)
+
+В `tests/test_compose_api.py` (маркер `compose`, тот же `reset_mockserver`):
+
+| Тест | MockServer | Что проверяем |
+|------|------------|----------------|
+| `test_mock_api_auth_fail` | `GET /protected` → **401** + JSON `error` | клиент получает статус/тело/Content-Type без вызова реального IdP |
+| `test_mock_api_timeout` | `GET /slow` с `delay` 1000 ms, `timeout_s=0.2` | `ApiClient` поднимает `ApiError`, `__cause__` — `httpx.TimeoutException` |
+
+Политика клиента: при 4xx/5xx `get`/`post` **возвращают** `Response` (опционально `ensure_success` → `HttpStatusError`). Транспортные сбои (timeout и т.п.) всегда через `ApiError`.
+
 ## Allure
 
 ```bash

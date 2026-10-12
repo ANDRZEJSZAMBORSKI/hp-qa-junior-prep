@@ -163,6 +163,17 @@ Marker `compose` sam nie uruchamia infrastruktury — patrz komenda:
 
 `LAB_FW_BASE_URL` nie ustawiamy globalnie w Compose: testy compose podają `base_url="http://mock-api:1080"` wprost w `Settings`.
 
+### Negatywne scenariusze integracyjne (lab I3)
+
+W `tests/test_compose_api.py` (marker `compose`, ten sam `reset_mockserver`):
+
+| Test | MockServer | Co sprawdzamy |
+|------|------------|---------------|
+| `test_mock_api_auth_fail` | `GET /protected` → **401** + JSON `error` | klient dostaje status/ciało/Content-Type bez prawdziwego IdP |
+| `test_mock_api_timeout` | `GET /slow` z `delay` 1000 ms, `timeout_s=0.2` | `ApiClient` rzuca `ApiError`, `__cause__` to `httpx.TimeoutException` |
+
+Polityka klienta: przy 4xx/5xx `get`/`post` **zwracają** `Response` (opcjonalnie `ensure_success` → `HttpStatusError`). Błędy transportu (timeout itd.) zawsze jako `ApiError`.
+
 ## Allure
 
 ```bash
