@@ -16,6 +16,13 @@ def pytest_configure(config):
     """Called once when pytest starts."""
     setup_logging(get_settings().log_level)
 
+
+def pytest_collection_modifyitems(items):
+    """Compose tests share one MockServer; serialize them under xdist loadgroup."""
+    for item in items:
+        if item.get_closest_marker("compose") is not None:
+            item.add_marker(pytest.mark.xdist_group(name="mockserver"))
+
 @pytest.fixture
 def api_client(settings):
     def handler(request: httpx.Request) -> httpx.Response:
