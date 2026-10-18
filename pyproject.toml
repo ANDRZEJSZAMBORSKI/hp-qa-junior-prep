@@ -47,6 +47,7 @@ markers = [
     "ui: UI tests",
     "selenium: selenium tests",
     "compose: tests that require Docker Compose services",
+    "distributed_lab: distributed_lab tests", 
 ]
 [project.entry-points.pytest11]
 lab_fw = "lab_fw.pytest_plugin.plugin"

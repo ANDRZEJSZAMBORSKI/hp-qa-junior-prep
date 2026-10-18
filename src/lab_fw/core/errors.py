@@ -29,3 +29,14 @@ class HttpStatusError(ApiError):
     ) -> None:
         super().__init__(message)
         self.response = response
+
+class DeadlineExceededError(LabFwError):
+    """Deadline exceeded."""
+
+
+class JobDeadlineExceeded(DeadlineExceededError):
+    """Job execution deadline exceeded."""
+
+
+class WorkerDeadlineExceeded(DeadlineExceededError):
+    """Worker execution deadline exceeded."""

@@ -270,6 +270,74 @@ Identyfikatory łączące zapisy jednego żądania lub procesu biznesowego. Requ
 
 Sukces lokalnie nie dowodzi sukcesu w CI. Kontroluj: wersje Pythona/zależności, sekrety/env, zawartość obrazu, mocki/serwisy zewnętrzne, komendę pytest w workflow. W tym repo Compose spina usługi; CI sprawdza powtarzalność.
 
+## Lab L2: kolejka, retry, timeout, deadline, idempotency
+
+Ćwiczenie do [L1](#systemy-rozproszone-teoria-i-terminy-lab-l1): kolejka in-memory → worker → HTTP przez `ApiClient` z `lab_fw`, z polityką retry i limitami czasu.
+
+**Kod:** `src/distributed_lab/queue_worker.py`  
+**Testy:** `tests/distributed_lab/` (marker `@pytest.mark.distributed_lab`)
+
+### Komponenty
+
+| Komponent | Rola |
+|-----------|------|
+| `Job` | Zadanie: `method`, `path`, opcjonalnie `timeout`, `deadline_s`, `payload`, `headers`, `idempotency_key` |
+| `parse_job` | Walidacja dict → `Job`; błędy schematu → `SchemaError` |
+| `InMemoryQueue` | FIFO na `deque`; `put` przyjmuje tylko `Job` |
+| `Worker` | `run_once()` — jedno zadanie; `execute()` — jedno wywołanie HTTP |
+
+Worker buduje kwargs klienta: `json` z `payload`, kopia `headers`, a gdy jest `idempotency_key` — nagłówek `Idempotency-Key` (bez mutacji modelu job).
+
+### Retry i metoda HTTP
+
+W `run_once` jest `retry_call` (do 3 prób) i `lab_fw.api.retry_policy.should_retry`:
+
+- **GET:** retry przy `429` / `503` i błędach transportowych (`ConnectError`, `ReadTimeout`, …);
+- **POST:** **brak** retry (nawet przy `429`/`503` lub timeout) — mniejsze ryzyko podwójnego efektu bez idempotencji po stronie serwera.
+
+Po wyczerpaniu prób lub przy statusie bez retry — `ApiError` / `HttpStatusError` (przez `ensure_success`).
+
+### Timeout vs deadline
+
+| Mechanizm | Gdzie | Znaczenie |
+|-----------|--------|-----------|
+| **Timeout** | `Settings.timeout_s`, `Job.timeout` | Ile czekać na jedno wywołanie HTTP (connect/read) |
+| **Job deadline** | `Job.deadline_s` | Budżet czasu na job (w tym retry); koniec → `JobDeadlineExceeded` |
+| **Worker deadline** | `Worker(..., deadline_w=...)` | Budżet sesji workera; koniec → `WorkerDeadlineExceeded` |
+
+Timeout żądania to **minimum** z job timeout, pozostałego job deadline i pozostałego worker deadline. Po `ApiError` worker ponownie sprawdza deadline — końcowy błąd może być deadline, a nie ostatni błąd HTTP.
+
+### Idempotency (serwer HTTP do nauki)
+
+W `tests/distributed_lab/test_timeout.py` — `WorkerTestHandler`: powtórny POST z tym samym `Idempotency-Key` **nie dodaje** drugiego wpisu do `received_requests`, ale zwraca dane pierwszego żądania. Testy obejmują:
+
+- JSON i nagłówki (w tym `X-Request-ID`) na prawdziwym HTTP;
+- brak `Idempotency-Key`, gdy pole nie jest ustawione;
+- POST przy timeout — jedna próba, klucz na wire;
+- dwa joby, ten sam klucz — `server.calls == 2`, `len(received_requests) == 1`;
+- GET retry (503→200) — ten sam `Idempotency-Key` przy każdej próbie.
+
+### Uruchomienie
+
+```bash
+# wszystkie testy lab L2
+pytest -m distributed_lab -q
+
+# tylko kolejka/worker (bez wolnego serwera HTTP)
+pytest tests/distributed_lab/test_queue_worker.py -q
+
+# timeout, deadline, idempotency na lokalnym serwerze HTTP
+pytest tests/distributed_lab/test_timeout.py -q
+```
+
+Docker / MockServer do L2 **nie są potrzebne** — wystarczy venv i `pip install -e .`.
+
+### Gdy test pada
+
+1. Traceback: `JobDeadlineExceeded` / `WorkerDeadlineExceeded` vs `ApiError` i `__cause__` (`ReadTimeout`, `ConnectError`, …).
+2. Liczniki prób w MockTransport lub `server.request_counts` / `received_requests` w testach slow-server.
+3. Metoda job: POST nie powinien dawać trzech prób przy domyślnej polityce retry.
+
 ## Allure
 
 ```bash
