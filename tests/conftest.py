@@ -17,6 +17,7 @@ def pytest_configure(config):
     setup_logging(get_settings().log_level)
 
 
+@pytest.hookimpl(tryfirst=True)
 def pytest_collection_modifyitems(items):
     """Compose tests share one MockServer; serialize them under xdist loadgroup."""
     for item in items:

@@ -3,6 +3,7 @@ import pytest
 from lab_fw.api.client import ApiClient
 from lab_fw.core.config import Settings
 from lab_fw.core.errors import ApiError
+import time
 
 @pytest.fixture
 def reset_mockserver():
@@ -123,6 +124,7 @@ def test_mock_api_auth_fail(reset_mockserver):
 
     assert verify_response.status_code == 202
 
+
 @pytest.mark.compose
 def test_mock_api_timeout(reset_mockserver):
     response = httpx.put(
@@ -162,17 +164,33 @@ def test_mock_api_timeout(reset_mockserver):
     assert isinstance(exc_info.value.__cause__, httpx.TimeoutException)  # True
     assert isinstance(exc_info.value.__cause__, httpx.HTTPError)         # True
 
-    verify_response = httpx.put(
+    VERIFY_DEADLINE_S = 2.0
+    VERIFY_INTERVAL_S = 0.05
+
+    verify_payload = {
+                        "httpRequest": {
+                            "method": "GET",
+                            "path": "/slow",
+                        },
+                        "times": {
+                            "atLeast": 1,
+                        },
+                    }
+
+    deadline = time.monotonic() + VERIFY_DEADLINE_S
+    last_response = None
+    while time.monotonic() < deadline:
+        last_response = httpx.put(
             "http://mock-api:1080/mockserver/verify",
-            json={
-                "httpRequest": {
-                    "method": "GET",
-                    "path": "/slow",
-                },
-                "times": {
-                    "atLeast": 1,
-                },
-            },
+            json=verify_payload,
+            timeout=5.0,
         )
-    
-    assert verify_response.status_code == 202
+        if last_response.status_code == 202:
+            break
+        time.sleep(VERIFY_INTERVAL_S)
+
+    assert last_response is not None, "verify was never called"
+    assert last_response.status_code == 202, (
+                                                f"MockServer verify failed: {last_response.status_code}\n"
+                                                f"{last_response.text}"
+                                            )
