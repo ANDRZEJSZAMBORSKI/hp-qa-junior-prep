@@ -338,6 +338,80 @@ Docker / MockServer do L2 **nie są potrzebne** — wystarczy venv i `pip instal
 2. Liczniki prób w MockTransport lub `server.request_counts` / `received_requests` w testach slow-server.
 3. Metoda job: POST nie powinien dawać trzech prób przy domyślnej polityce retry.
 
+## Lab L3: checklista badania awarii
+
+Systematyczna diagnostyka w pięciu obszarach: **Env → Build → Logs → Metrics → Trace**. Praktyka: zachowanie **retry**, logi przez `caplog` oraz ręczne **liczniki badania** (*investigation counters*).
+
+**Testy:** `tests/distributed_lab/test_l3_investigation.py` (marker `@pytest.mark.distributed_lab`)
+
+**Powiązane laby:** [I4 — gdzie szukać przy padnięciu pytest](#diagnostyka-padających-testów-lab-i4) (mapa miejsc); [L2](#lab-l2-kolejka-retry-timeout-deadline-idempotency) (kolejka, worker, retry, deadline); L3 to **trasa badania** plus praktyka retry/logów.
+
+### 1. Env — zmienne środowiskowe
+
+Sprawdzenie lokalne (przykład):
+
+```bash
+python -c "import os; print('LAB_FW_API_TOKEN:', 'SET' if os.getenv('LAB_FW_API_TOKEN') else 'MISSING'); print('LAB_FW_BASE_URL:', os.getenv('LAB_FW_BASE_URL', '<unset>')); print('LAB_FW_LOG_LEVEL:', os.getenv('LAB_FW_LOG_LEVEL', '<unset>'))"
+```
+
+Gdy zmienne nie są ustawione, `get_settings()` stosuje domyślne: `base_url=https://example.com`, `timeout_s=5.0`, `log_level=INFO`, `api_token=None`.
+
+**Lokalnie vs CI:** workflow **tests** w GitHub Actions ustawia `LAB_FW_API_TOKEN` ze Secrets i weryfikuje, że nie jest pusty. Brak tokenu lokalnie przy L3 jest OK z MockTransport; w CI env jest inny — typowy przypadek **local ≠ CI**.
+
+### 2. Build — stan projektu
+
+| Sprawdzenie | Po co |
+|-------------|--------|
+| `git rev-parse --short HEAD` | ten sam commit co w CI |
+| `python -m pip show lab-fw` | wersja pakietu, editable install |
+| `git status` | niezacommitowane zmiany vs czysty build |
+
+### 3. Logs — lab retry
+
+`httpx.MockTransport` + `Worker` + `ApiClient`. Dwa scenariusze:
+
+| Scenariusz | Zachowanie | Asercje |
+|------------|------------|---------|
+| Udane retry | 503, 503, 200 | 3 próby; 2× `WARNING` z `lab_fw.core.retry`; odpowiedź `{"ok": true}` |
+| Wyczerpanie (`exhausted`) | 503 × 3 | 3 próby; 2× `WARNING`; `HttpStatusError`; status/method/path |
+
+Logi: `INFO` — `lab_fw.api`; `WARNING` — `lab_fw.core.retry` przed kolejną próbą. Trzecia porażka nie musi dawać trzeciego WARNING.
+
+### 4. Metrics — liczniki badania
+
+W repozytorium nie ma wbudowanego Prometheusa/metryk. Dla scenariusza „same 503” zapisuj **ręczne liczniki z testu**:
+
+- `http_requests = 3`
+- `503_count = 3`
+- `retries_after_first = 2`
+
+To nie są metryki produkcyjne (brak error rate / p95 w runtime). Szukanie w kodzie: `grep -RniE "prometheus|metrics|histogram|counter|p95" src tests pyproject.toml`.
+
+### 5. Trace — korelacja
+
+Szukanie ID: `grep -RniE "X-Request-ID|Correlation-ID|request_id" src tests`. Testy L2 sprawdzają `X-Request-ID: req-123`. To **identyfikator na wire**, nie pełny tracing rozproszony (brak auto Trace ID / spanów między serwisami).
+
+### I4 vs L3 vs L2 (kotwica ustna)
+
+| Etap | Pytanie |
+|------|---------|
+| **I4** | Gdzie szukać? (pytest, Compose, mock-api, CI) |
+| **L3** | W jakiej kolejności? (Env → Build → Logs → Metrics → Trace) |
+| **L2** | Kolejka, worker, deadline, idempotency (osobny lab) |
+| **Retry-lab w L3** | Praktyka: retry + `caplog` + liczniki badania |
+
+*I4 — mapa miejsc; L3 — trasa badania; testy L2/L3 — retry i logi w praktyce.*
+
+### Uruchomienie
+
+```bash
+pytest tests/distributed_lab/test_l3_investigation.py -v
+```
+
+### Ograniczenia L3
+
+`MockTransport` — bez prawdziwej sieci i bez Docker/MockServer. Automatyczne metryki i platforma tracing end-to-end nie wchodzą w zakres L3.
+
 ## Allure
 
 ```bash
