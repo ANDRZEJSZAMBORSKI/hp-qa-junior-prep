@@ -412,6 +412,103 @@ pytest tests/distributed_lab/test_l3_investigation.py -v
 
 `MockTransport` — no real network or Docker/MockServer. Automatic metrics and end-to-end tracing platforms are out of scope for L3.
 
+## Lab M1 — Parallel execution and resource isolation
+
+### Goal
+
+Understand how parallel pytest runs via `pytest-xdist` affect shared resources and learn how to prevent conflicts between tests.
+
+### Isolation strategies
+
+| Shared resource | Strategy | Setup |
+|---|---|---|
+| MockServer in Docker Compose | Run conflicting tests on one worker | `@pytest.mark.xdist_group(name="mockserver")` is applied in `tests/conftest.py` to tests marked `compose`; run with `--dist loadgroup` |
+| One local browser without Grid | Serialize conflicting tests | Same group + `--dist loadgroup` |
+| Shared report file | Separate file per worker | `worker_id` in the filename or `tmp_path` |
+| Resource created per test | Create and tear down per test | Pytest fixture with proper teardown |
+
+A plain `threading.Lock` is not enough to synchronize a shared file across processes: xdist workers are separate processes. If a shared file is truly required, use an inter-process lock. For test artifacts, separate files are usually simpler.
+
+### Compose and MockServer
+
+Compose tests share one MockServer instance. If several tests change expectations or reset state at the same time, they can interfere with each other.
+
+In `tests/conftest.py`, the `pytest_collection_modifyitems` hook assigns `@pytest.mark.xdist_group(name="mockserver")` to every test marked `compose`.
+
+#### Why `tryfirst=True` matters
+
+With `--dist loadgroup`, xdist groups tests by the `xdist_group` marker.
+
+During collection, the `pytest_collection_modifyitems` hook in `tests/conftest.py` adds `xdist_group(name="mockserver")` to tests marked `compose`. For grouping to work, that marker must be present before xdist’s collection logic builds the schedule.
+
+On the worker, xdist uses `xdist_group` to append a suffix to `nodeid`, e.g. `@mockserver`. If the marker is missing in time, the controller may receive nodeids without that suffix. Then `LoadGroupScheduling` will not merge conflicting tests into one group, and they may run on different workers in parallel.
+
+The project uses `@pytest.hookimpl(tryfirst=True)` — see `tests/conftest.py`. It raises the hook’s priority so the group marker is applied before xdist processes grouping.
+
+`tryfirst=True` alone does not lock a shared resource; isolation comes from correct grouping and run configuration.
+
+#### `loadgroup` vs `loadscope`
+
+- `--dist load` assigns individual tests to workers; good for independent tests.
+- `--dist loadscope` keeps tests from one module or class on one worker. If all conflicting Compose tests live in one module, that may be enough.
+- `--dist loadgroup` merges tests with the same `xdist_group`, including across modules. More flexible for a shared resource group.
+
+The project `Dockerfile` already uses `-n auto` and `--dist loadgroup`.
+
+#### Role of `reset_mockserver`
+
+The `reset_mockserver` fixture in `tests/test_compose_api.py` resets MockServer before and after each test.
+
+That keeps state clean between sequential tests. It does not replace grouping: if two tests hit MockServer in parallel, one test’s reset can break the other.
+
+### Verification
+
+#### 1. Run Compose
+
+```bash
+docker compose up --build --abort-on-container-exit
+```
+
+This starts Compose services and the tests container per project settings.
+
+#### 2. Check Compose test grouping
+
+Inside the `tests` container you can run:
+
+```bash
+docker compose run --rm tests pytest tests/test_compose_api.py -vv -n auto --dist loadgroup
+```
+
+This runs `tests/test_compose_api.py` with verbose output and `loadgroup` scheduling.
+
+Look for three signals:
+
+- At session start: `scheduling tests via LoadGroupScheduling`.
+- In test lines: group suffix, e.g. `tests/test_compose_api.py::test_mock_api_users@mockserver`.
+- All four Compose tests on the same worker, e.g. `[gw0]`. The index may differ; what matters is one worker for the whole group.
+
+When running via Compose, `mock-api` must be reachable from the tests container at `http://mock-api:1080`.
+
+#### 3. CI split
+
+Regular tests and Compose tests run separately:
+
+- `.github/workflows/tests.yml` runs with `-n auto`, excluding markers `ui`, `selenium`, and `compose`.
+- `.github/workflows/ci.yml` runs `docker compose up --build --abort-on-container-exit`.
+- `Dockerfile` sets `-n auto --dist loadgroup` for pytest in the container.
+
+CI thus separates the default suite from tests that depend on shared MockServer.
+
+### Related labs
+
+- **C6** — test isolation and shared resources.
+- **G3** — parallel runs in CI: `pytest-xdist`, Docker, and run settings.
+- **I4** — where to look for config and results: pytest, Compose, MockServer, CI.
+- **L2** — queue, worker, timeout, retry, idempotency.
+- **L3** — failure investigation via logs and other signals.
+
+**M1 takeaway:** parallelism speeds up independent tests, but shared resources need an explicit isolation strategy. Grouping, per-worker resources, and cleanup solve different problems and do not replace each other.
+
 ## Allure
 
 ```bash
