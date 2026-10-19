@@ -512,6 +512,27 @@ docker compose run --rm tests pytest tests/test_compose_api.py -vv -n auto --dis
 
 Таким образом, конфигурация CI разделяет обычные тесты и тесты, использующие общий сервис MockServer.
 
+### Практика: `parallel_lab`
+
+Код: `tests/parallel_lab/test_parallel_resources.py`, маркер `@pytest.mark.parallel_lab` (см. `pyproject.toml`). Зависимость для lock-тестов: `filelock` в `[project.optional-dependencies]` (`dev` / `dev_slim`).
+
+| Что проверяем | Тесты (идея) |
+|---|---|
+| Отдельный файл на worker (`PYTEST_XDIST_WORKER`) | `test_shared_file_write_read`, `test_worker_specific_files_are_isolated` |
+| Изоляция через `tmp_path` | `test_tmp_path_creates_isolated_temp_file`, `test_tmp_path_is_unique_for_each_test` |
+| Общий файл + `FileLock` под xdist | `test_shared_file_access_with_file_lock`, `test_shared_file_access_is_serialized` |
+| Гонка без lock (multiprocessing, воспроизводимо) | `test_shared_file_race_condition_is_reproducible` |
+| Lock между процессами | `test_file_lock_prevents_shared_file_race` |
+
+Запуск:
+
+```bash
+pytest tests/parallel_lab -m parallel_lab -v
+pytest tests/parallel_lab -m parallel_lab -n 2 -v
+```
+
+Файлы `shared_report*.txt` в каталоге лабы — локальные артеfactы прогона; в git не коммитятся (см. `.gitignore`). Полный suite в Docker (`Dockerfile` CMD) включает `parallel_lab` вместе с остальными тестами без `ui` / `selenium`.
+
 ### Связь с предыдущими лабораторными
 
 - **C6** — изоляция тестов и управление общими ресурсами.

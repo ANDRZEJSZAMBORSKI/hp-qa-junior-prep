@@ -499,6 +499,27 @@ Testy zwykłe i Compose są rozdzielone:
 
 CI oddziela główny suite od testów wymagających współdzielonego MockServer.
 
+### Praktyka: `parallel_lab`
+
+Kod: `tests/parallel_lab/test_parallel_resources.py`, marker `@pytest.mark.parallel_lab` (patrz `pyproject.toml`). Testy z lockiem wymagają `filelock` w `[project.optional-dependencies]` (`dev` / `dev_slim`).
+
+| Temat | Testy (idea) |
+|---|---|
+| Osobny plik na worker (`PYTEST_XDIST_WORKER`) | `test_shared_file_write_read`, `test_worker_specific_files_are_isolated` |
+| Izolacja przez `tmp_path` | `test_tmp_path_creates_isolated_temp_file`, `test_tmp_path_is_unique_for_each_test` |
+| Wspólny plik + `FileLock` pod xdist | `test_shared_file_access_with_file_lock`, `test_shared_file_access_is_serialized` |
+| Wyścig bez locka (multiprocessing, powtarzalnie) | `test_shared_file_race_condition_is_reproducible` |
+| Lock między procesami | `test_file_lock_prevents_shared_file_race` |
+
+Uruchomienie:
+
+```bash
+pytest tests/parallel_lab -m parallel_lab -v
+pytest tests/parallel_lab -m parallel_lab -n 2 -v
+```
+
+Pliki `shared_report*.txt` w katalogu laby to lokalne artefakty; nie commituj ich (patrz `.gitignore`). Pełny suite w Dockerze (`Dockerfile` CMD) obejmuje `parallel_lab` razem z testami bez `ui` / `selenium`.
+
 ### Powiązane laby
 
 - **C6** — izolacja testów i współdzielone zasoby.

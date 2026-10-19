@@ -24,6 +24,8 @@ allure-report/
 
 # lab-fw test artifacts
 .lab_fw_artifacts/
+tests/parallel_lab/shared_report*.txt
+tests/parallel_lab/*.lock
 
 # OS / editor (полезно сразу)
 .DS_Store

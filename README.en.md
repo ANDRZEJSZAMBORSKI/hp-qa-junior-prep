@@ -499,6 +499,27 @@ Regular tests and Compose tests run separately:
 
 CI thus separates the default suite from tests that depend on shared MockServer.
 
+### Practice: `parallel_lab`
+
+Code: `tests/parallel_lab/test_parallel_resources.py`, marker `@pytest.mark.parallel_lab` (see `pyproject.toml`). Lock tests need `filelock` in `[project.optional-dependencies]` (`dev` / `dev_slim`).
+
+| Topic | Tests (idea) |
+|---|---|
+| Per-worker file (`PYTEST_XDIST_WORKER`) | `test_shared_file_write_read`, `test_worker_specific_files_are_isolated` |
+| Isolation via `tmp_path` | `test_tmp_path_creates_isolated_temp_file`, `test_tmp_path_is_unique_for_each_test` |
+| Shared file + `FileLock` under xdist | `test_shared_file_access_with_file_lock`, `test_shared_file_access_is_serialized` |
+| Race without lock (multiprocessing, deterministic) | `test_shared_file_race_condition_is_reproducible` |
+| Inter-process lock | `test_file_lock_prevents_shared_file_race` |
+
+Run:
+
+```bash
+pytest tests/parallel_lab -m parallel_lab -v
+pytest tests/parallel_lab -m parallel_lab -n 2 -v
+```
+
+`shared_report*.txt` in the lab folder are local run artifacts; do not commit them (see `.gitignore`). The full Docker suite (`Dockerfile` CMD) includes `parallel_lab` with other tests except `ui` / `selenium`.
+
 ### Related labs
 
 - **C6** — test isolation and shared resources.
