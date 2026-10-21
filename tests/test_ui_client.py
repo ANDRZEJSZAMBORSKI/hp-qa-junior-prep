@@ -35,7 +35,10 @@ def test_selenium_client_applies_ui_timeout(settings):
         options = MagicMock()
         driver = MagicMock()
         sp.ChromeOptions.return_value = options
-        sp.Chrome.return_value = driver
+        if settings.selenium_remote_url is None:
+            sp.Chrome.return_value = driver
+        else:
+            sp.Remote.return_value = driver
         sc = SeleniumClient(settings)
         sc.start()
         driver.set_page_load_timeout.assert_called_with(ui_timeout_s())

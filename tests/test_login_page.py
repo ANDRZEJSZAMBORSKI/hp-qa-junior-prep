@@ -51,6 +51,7 @@ def test_successful_login_fixture(ui_client):
     assert login_page.get_url() == f"{ui_client.settings.ui_base_url}/secure"
     assert login_page.is_login_success_message_visible('You logged into a secure area!')
 
+@pytest.mark.serial
 @pytest.mark.ui
 def test_login_page_fields_fixture_module(ui_client_module):
     """Opens /login; leaves the shared page on the login screen for the next test."""
@@ -60,7 +61,8 @@ def test_login_page_fields_fixture_module(ui_client_module):
     assert login_page.get_url() == f"{ui_client_module.settings.ui_base_url}/login"
     assert login_page.is_username_visible()
     assert login_page.is_password_visible()
-        
+
+@pytest.mark.serial        
 @pytest.mark.ui
 def test_successful_login_fixture_module(ui_client_module):
     """

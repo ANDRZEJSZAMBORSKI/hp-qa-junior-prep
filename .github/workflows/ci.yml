@@ -20,7 +20,40 @@ jobs:
       #- name: Run tests
       #  run: docker run --rm hp-qa-junior-prep:ci
 
-      - name: Run Docker Compose
-        run: docker compose up --build --abort-on-container-exit
+      - name: Run API and non-UI tests
+        run: docker compose up --build --abort-on-container-exit tests
         env:
           DOCKER_TARGET: ci
+      
+      - name: Stop API containers
+        if: always()
+        run: docker compose down
+
+      - name: Run Selenium tests in parallel
+        run: docker compose --profile selenium run --build --rm selenium-tests
+        env:
+          DOCKER_TARGET: ci
+      
+      - name: Run Selenium tests serially
+        run: docker compose --profile selenium run --build --rm selenium-tests-serial
+        env:
+          DOCKER_TARGET: ci
+
+      - name: Stop Selenium containers
+        if: always()
+        run: docker compose --profile selenium down
+
+
+      - name: Run Playwright tests in parallel
+        run: docker compose --profile playwright run --build --rm playwright-tests
+        env:
+          DOCKER_TARGET: ci
+
+      - name: Run Playwright tests serially
+        run: docker compose --profile playwright run --build --rm playwright-tests-serial
+        env:
+          DOCKER_TARGET: ci
+
+      - name: Stop Playwright containers
+        if: always()
+        run: docker compose --profile playwright down

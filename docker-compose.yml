@@ -14,3 +14,74 @@ services:
       #LAB_FW_BASE_URL: http://mock-api:1080
     depends_on:
       - mock-api
+  
+  selenium:
+    image: selenium/standalone-chrome:4.48.0-20260905
+    profiles:
+      - selenium
+    ports:
+      - "4444:4444"
+      - "7900:7900"
+    shm_size: 2gb
+    environment:
+      SE_NODE_MAX_SESSIONS: "2"
+      SE_NODE_OVERRIDE_MAX_SESSIONS: "true"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:4444/status | grep -q '\"ready\": true'"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+  
+  selenium-tests:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: ${DOCKER_TARGET:-ci}
+    environment:
+      SELENIUM_REMOTE_URL: http://selenium:4444
+      LAB_FW_API_TOKEN: ${LAB_FW_API_TOKEN:-ci-demo-token}
+    depends_on:
+      selenium:
+        condition: service_healthy
+    command: ["pytest", "tests", "-m", "selenium and not serial", "-n", "2", "-vv"]
+    profiles:
+      - selenium
+  
+  selenium-tests-serial:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: ${DOCKER_TARGET:-ci}
+    environment:
+      SELENIUM_REMOTE_URL: http://selenium:4444
+      LAB_FW_API_TOKEN: ${LAB_FW_API_TOKEN:-ci-demo-token}
+    depends_on:
+      selenium:
+        condition: service_healthy
+    command: ["pytest", "tests", "-m", "selenium and serial", "-vv"]
+    profiles:
+      - selenium
+  
+
+  playwright-tests:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: playwright
+    environment:
+      LAB_FW_API_TOKEN: ${LAB_FW_API_TOKEN:-ci-demo-token}
+    command: ["pytest", "tests", "-m", "ui and not selenium and not serial", "-n", "2", "-vv"]
+    profiles:
+      - playwright
+
+  playwright-tests-serial:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: playwright
+    environment:
+      LAB_FW_API_TOKEN: ${LAB_FW_API_TOKEN:-ci-demo-token}
+    command: ["pytest", "tests", "-m", "ui and not selenium and serial", "-vv"]
+    profiles:
+      - playwright

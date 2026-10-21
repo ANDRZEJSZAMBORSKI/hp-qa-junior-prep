@@ -169,54 +169,6 @@ def test_secure_page_logout_fixture(selenium_client):
     assert login_page.is_username_visible()
     assert login_page.is_password_visible()
 
-
-@pytest.mark.selenium
-def test_secure_page_after_login_fixture_module(selenium_client_module):
-    """
-    Opens /login and logs in.
-    Leaves the shared page on /secure for the next test.
-    """
-    login_page = LoginPage(selenium_client_module.driver, selenium_client_module.settings.ui_base_url)
-    login_page.open()
-
-    secure_page = login_page.login(
-        "tomsmith",
-        "SuperSecretPassword!",
-    )
-
-    assert login_page.is_login_success_message_visible(
-        "You logged into a secure area!"
-    )
-    assert secure_page.get_url() == f"{selenium_client_module.settings.ui_base_url}/secure"
-    assert secure_page.is_login_success_message_visible(
-        "You logged into a secure area!"
-    )
-
-
-@pytest.mark.selenium
-def test_secure_page_logout_fixture_module(selenium_client_module):
-    """
-    Intentionally no open() or login().
-    Uses the same module-scoped page left on /secure
-    by the previous test.
-    Do not run this test alone.
-    """
-    secure_page = SecurePage(selenium_client_module.driver, selenium_client_module.settings.ui_base_url)
-
-    assert secure_page.get_url() == f"{selenium_client_module.settings.ui_base_url}/secure"
-
-    login_page = secure_page.logout()
-
-    assert secure_page.is_logout_success_message_visible(
-        "You logged out of the secure area!"
-    )
-    assert login_page.is_logout_success_message_visible(
-        "You logged out of the secure area!"
-    )
-    assert login_page.get_url() == f"{selenium_client_module.settings.ui_base_url}/login"
-    assert login_page.is_username_visible()
-    assert login_page.is_password_visible()
-
 @pytest.mark.selenium
 def test_login_again_without_logout(settings):
     with SeleniumClient(settings) as sc:
@@ -337,5 +289,51 @@ def test_logout_raises_when_url_not_login_only_mock():
         secure.logout()
     secure.wait.clickable.return_value.click.assert_called_once()
 
-       
+@pytest.mark.serial       
+@pytest.mark.selenium
+def test_secure_page_after_login_fixture_module(selenium_client_module):
+    """
+    Opens /login and logs in.
+    Leaves the shared page on /secure for the next test.
+    """
+    login_page = LoginPage(selenium_client_module.driver, selenium_client_module.settings.ui_base_url)
+    login_page.open()
+
+    secure_page = login_page.login(
+        "tomsmith",
+        "SuperSecretPassword!",
+    )
+
+    assert login_page.is_login_success_message_visible(
+        "You logged into a secure area!"
+    )
+    assert secure_page.get_url() == f"{selenium_client_module.settings.ui_base_url}/secure"
+    assert secure_page.is_login_success_message_visible(
+        "You logged into a secure area!"
+    )
+
+@pytest.mark.serial
+@pytest.mark.selenium
+def test_secure_page_logout_fixture_module(selenium_client_module):
+    """
+    Intentionally no open() or login().
+    Uses the same module-scoped page left on /secure
+    by the previous test.
+    Do not run this test alone.
+    """
+    secure_page = SecurePage(selenium_client_module.driver, selenium_client_module.settings.ui_base_url)
+
+    assert secure_page.get_url() == f"{selenium_client_module.settings.ui_base_url}/secure"
+
+    login_page = secure_page.logout()
+
+    assert secure_page.is_logout_success_message_visible(
+        "You logged out of the secure area!"
+    )
+    assert login_page.is_logout_success_message_visible(
+        "You logged out of the secure area!"
+    )
+    assert login_page.get_url() == f"{selenium_client_module.settings.ui_base_url}/login"
+    assert login_page.is_username_visible()
+    assert login_page.is_password_visible()
 

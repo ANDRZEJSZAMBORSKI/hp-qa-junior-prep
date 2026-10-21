@@ -29,10 +29,10 @@ pytest -m selenium -q
 |------|------------|
 | `src/lab_fw/` | фреймворк (api, ui, config, reporting, pytest plugin) |
 | `tests/` | pytest suite |
-| `Dockerfile` | multi-stage: `local` (Avast CA) / `ci` |
-| `docker-compose.yml` | `mock-api` + `tests` |
+| `Dockerfile` | multi-stage: `local` (Avast CA) / `ci` / `playwright` |
+| `docker-compose.yml` | `mock-api` + `tests`; profiles `selenium`, `playwright` |
 | `.github/workflows/tests.yml` | unit/API на runner (без UI/compose) |
-| `.github/workflows/ci.yml` | Docker Compose на GitHub Actions |
+| `.github/workflows/ci.yml` | Compose: API → Selenium Grid → Playwright в Docker |
 
 ## Переменные окружения
 
@@ -43,6 +43,8 @@ pytest -m selenium -q
 | `LAB_FW_API_TOKEN` | optional Bearer token |
 | `LAB_FW_TIMEOUT_S` / `LAB_FW_UI_TIMEOUT_S` | timeouts |
 | `LAB_FW_LOG_LEVEL` | уровень логов |
+| `SELENIUM_REMOTE_URL` | URL Selenium Grid (`webdriver.Remote`); если не задан — локальный Chrome |
+| `DOCKER_TARGET` | target сборки Compose: `ci` (default) или `local` (Avast CA) |
 
 Секрет CI: GitHub → Settings → Secrets → `LAB_FW_API_TOKEN`.
 
@@ -54,13 +56,17 @@ pytest -m selenium -q
 | `ui` | реальный Playwright |
 | `selenium` | реальный Selenium |
 | `compose` | нужен сервис `mock-api` из Compose |
+| `parallel_lab` | упражнения M1 (xdist, файлы, lock) |
+| `distributed_lab` | упражнения L2/L3 |
+| `serial` | общее состояние (module-scoped UI/Selenium); не параллелить (`-n`) |
 
 ## Docker
 
 ### Образы (`Dockerfile`)
 
 - **`ci`** — для GitHub / Linux без корпоративного MITM  
-- **`local`** — копирует `avast-root.crt` (файл локальный, в git не коммитится)
+- **`local`** — копирует `avast-root.crt` (файл локальный, в git не коммитится)  
+- **`playwright`** — базовый образ Microsoft Playwright с Chromium (profile `playwright` в Compose)
 
 `Dockerfile.local` и `avast-root.crt` в `.gitignore`.
 
@@ -80,18 +86,38 @@ CMD образа: `pytest -m "not ui and not selenium"` — **включая** `
 
 ### Docker Compose
 
-```bash
-# default target=ci (удобно без Avast)
-docker compose up --build --abort-on-container-exit
+**Базовый прогон (API, compose, parallel_lab — без UI):**
 
-# ноутбук с Avast
-DOCKER_TARGET=local docker compose up --build --abort-on-container-exit
+```bash
+docker compose up --build --abort-on-container-exit tests
+docker compose down
+
+# ноутбук с Avast MITM
+DOCKER_TARGET=local docker compose up --build --abort-on-container-exit tests
 ```
 
-Сервисы:
+**Profile `selenium`** — Selenium Grid + тесты в контейнере `ci`:
 
-- `mock-api` — MockServer на порту `1080`
-- `tests` — собирает Dockerfile и гоняет pytest
+```bash
+docker compose --profile selenium run --build --rm selenium-tests          # -m "selenium and not serial" -n 2
+docker compose --profile selenium run --build --rm selenium-tests-serial   # -m "selenium and serial"
+docker compose --profile selenium down
+```
+
+- `selenium` — `selenium/standalone-chrome`, порты `4444` (WebDriver), `7900` (noVNC)
+- в `selenium-tests*` задаётся `SELENIUM_REMOTE_URL=http://selenium:4444`
+
+**Profile `playwright`** — UI Playwright в образе `playwright`:
+
+```bash
+docker compose --profile playwright run --build --rm playwright-tests
+docker compose --profile playwright run --build --rm playwright-tests-serial
+```
+
+Сервисы по умолчанию (без profile):
+
+- `mock-api` — MockServer `:1080`
+- `tests` — target `${DOCKER_TARGET:-ci}`, CMD из Dockerfile
 
 `LAB_FW_BASE_URL` в compose **не** задаём глобально: старые тесты ждут `example.com` / MockTransport. Compose-тесты ходят на `http://mock-api:1080` явно.
 
@@ -100,7 +126,7 @@ DOCKER_TARGET=local docker compose up --build --abort-on-container-exit
 | Workflow | Что делает |
 |----------|------------|
 | **tests** | `pip install` + `pytest -m "not ui and not selenium and not compose"` + Allure artifact |
-| **CI** | `docker compose up --build --abort-on-container-exit` (`DOCKER_TARGET=ci`) — здесь бегут и `@pytest.mark.compose` |
+| **CI** | по шагам: `tests` → `down` → Selenium (parallel + serial) → `down` → Playwright (parallel + serial); `DOCKER_TARGET=ci` |
 
 Логика маркера `compose`:
 
@@ -479,10 +505,10 @@ Compose-тесты используют общий экземпляр MockServer
 #### 1. Запуск Compose
 
 ```bash
-docker compose up --build --abort-on-container-exit
+docker compose up --build --abort-on-container-exit tests
 ```
 
-Эта команда запускает сервисы Compose и тестовый контейнер согласно настройкам проекта.
+Эта команда поднимает `mock-api` и контейнер `tests` (API / compose / parallel_lab, без UI).
 
 #### 2. Проверка группировки Compose-тестов
 
@@ -507,7 +533,7 @@ docker compose run --rm tests pytest tests/test_compose_api.py -vv -n auto --dis
 В проекте обычные тесты и Compose-тесты запускаются отдельно:
 
 - `.github/workflows/tests.yml` запускает тесты с `-n auto`, исключая маркеры `ui`, `selenium` и `compose`.
-- `.github/workflows/ci.yml` запускает `docker compose up --build --abort-on-container-exit`.
+- `.github/workflows/ci.yml` сначала поднимает только сервис `tests`, затем отдельно profiles `selenium` и `playwright` (см. Lab M2).
 - `Dockerfile` задаёт `-n auto --dist loadgroup` для запуска pytest в контейнере.
 
 Таким образом, конфигурация CI разделяет обычные тесты и тесты, использующие общий сервис MockServer.
@@ -542,6 +568,76 @@ pytest tests/parallel_lab -m parallel_lab -n 2 -v
 - **L3** — расследование проблем по логам и другим сигналам.
 
 **Главная идея M1:** параллельное выполнение ускоряет независимые тесты, но общие ресурсы требуют явной стратегии изоляции. Группировка, отдельные ресурсы и корректная очистка решают разные задачи и не заменяют друг друга.
+
+## Lab M2 — Удалённый браузер (Selenium Grid) и UI в Docker
+
+### Цель
+
+Вынести браузер в отдельный контейнер (Grid), параллелить независимые UI/Selenium-тесты и явно отделить сценарии с **общим состоянием** между тестами в одном модуле.
+
+### Изменения в коде
+
+| Компонент | Назначение |
+|-----------|------------|
+| `Settings.selenium_remote_url` | читается из `SELENIUM_REMOTE_URL`; пробелы → «не задано» → локальный Chrome |
+| `SeleniumClient.start()` | `webdriver.Chrome()` или `webdriver.Remote(...)`; при ошибке старта — `quit()` и проброс исходного исключения |
+| `@pytest.mark.serial` | цепочки с `ui_client_module` / `selenium_client_module` в `test_login_page.py`, `test_secure_page.py`, `test_login_page_selenium.py`, `test_secure_page_selenium.py`; отдельный прогон без `-n` |
+| `tests/test_selenium_client.py` | моки Remote/Chrome + опционально живой Grid |
+| `docker-compose.yml` | Grid, `selenium-tests` / `selenium-tests-serial`, `playwright-tests` / `playwright-tests-serial` |
+| `Dockerfile` target `playwright` | официальный образ Playwright Python — браузеры уже внутри |
+
+Grid: `SE_NODE_MAX_SESSIONS=2` согласован с `-n 2` в `selenium-tests`.
+
+### Маркеры и селекторы в Compose
+
+| Сервис | pytest `-m` |
+|--------|-------------|
+| `selenium-tests` | `selenium and not serial` |
+| `selenium-tests-serial` | `selenium and serial` |
+| `playwright-tests` | `ui and not selenium and not serial` |
+| `playwright-tests-serial` | `ui and not selenium and serial` |
+
+### Локальный запуск (без полного CI)
+
+```bash
+# Grid + параллельные Selenium (из корня репо)
+docker compose --profile selenium up -d selenium
+export SELENIUM_REMOTE_URL=http://localhost:4444   # Git Bash / WSL
+pytest -m "selenium and not serial" -n 2 -vv
+pytest -m "selenium and serial" -vv
+docker compose --profile selenium down
+
+# Playwright на хосте (нужен playwright install chromium)
+pytest -m "ui and not selenium and not serial" -n 2 -vv
+pytest -m "ui and not selenium and serial" -vv
+```
+
+noVNC при поднятом `selenium`: [http://localhost:7900](http://localhost:7900).
+
+### CI (`.github/workflows/ci.yml`)
+
+1. `docker compose up … tests` — API, `compose`, `parallel_lab`, …  
+2. `docker compose down`  
+3. `selenium-tests` → `selenium-tests-serial` → `docker compose --profile selenium down`  
+4. `playwright-tests` → `playwright-tests-serial`  
+
+Отдельного `playwright down` в workflow нет: на ephemeral runner это обычно не критично; при необходимости добавь step `docker compose --profile playwright down`.
+
+### Связь M1 ↔ M2
+
+| Проблема | M1 | M2 |
+|----------|----|----|
+| Общий MockServer | `xdist_group` + `loadgroup` | без изменений |
+| Общий локальный один браузер | `loadgroup` / последовательно | Grid: несколько сессий; `serial` для module fixtures |
+| Playwright в CI без установки на runner | — | отдельный Docker target `playwright` |
+
+### Проверка (review checklist)
+
+- Мок-тесты: `pytest tests/test_selenium_client.py -k "not connects_to_real" -q`
+- Живой Grid (нужен запущенный `selenium` на `:4444`): `test_selenium_client_connects_to_real_grid` при отсутствии env сам подставляет `http://localhost:4444`; `test_selenium_client_connects_to_real_grid_2` — только через `SELENIUM_REMOTE_URL` (фикстура `selenium_client`). В Compose/CI URL задаётся как `http://selenium:4444`.
+- Module-pair тесты (`*fixture_module`) — только в прогоне `serial`, не в `-n 2`.
+
+**Главная идея M2:** runner и браузер разделены; параллелизм UI опирается на несколько сессий Grid или workers Playwright, а не на один shared driver без маркировки.
 
 ## Allure
 

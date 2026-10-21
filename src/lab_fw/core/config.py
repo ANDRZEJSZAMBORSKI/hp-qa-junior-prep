@@ -16,7 +16,7 @@ class Settings:
     ui_timeout_s: float = 120.0
     ui_base_url: str | None = None
     api_token: str | None = None
-
+    selenium_remote_url: str | None = None
 
 def get_settings() -> Settings:
     base_url = os.getenv("LAB_FW_BASE_URL", "https://example.com")
@@ -25,6 +25,9 @@ def get_settings() -> Settings:
     ui_base_url = os.getenv("LAB_FW_UI_BASE_URL", "https://the-internet.herokuapp.com")
     api_token = os.getenv("LAB_FW_API_TOKEN")
     raw_ui_timeout = os.getenv("LAB_FW_UI_TIMEOUT_S", "120.0")
+    selenium_remote_url = os.getenv("SELENIUM_REMOTE_URL")
+    if selenium_remote_url is not None and selenium_remote_url.strip() == "":
+        selenium_remote_url = None
     try:
         timeout_s = float(raw_timeout)
     except ValueError as exc:
@@ -50,4 +53,5 @@ def get_settings() -> Settings:
         ui_timeout_s=ui_timeout_s,
         ui_base_url = ui_base_url.rstrip("/"),
         api_token=api_token,
+        selenium_remote_url=selenium_remote_url,
     )

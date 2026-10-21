@@ -37,8 +37,26 @@ class SeleniumClient:
                                                 "profile.password_manager_leak_detection": False,
                                             },
                                         )
-        self._driver = webdriver.Chrome(options=options)
-        self._driver.set_page_load_timeout(ui_timeout_s())
+        try:
+            if self.settings.selenium_remote_url is None:
+                self._driver = webdriver.Chrome(options=options)
+            else: 
+                self._driver = webdriver.Remote(
+                                    command_executor=self.settings.selenium_remote_url,
+                                    options=options,
+                                )
+            self._driver.set_page_load_timeout(ui_timeout_s())
+        except Exception:
+            driver = self._driver
+            self._driver = None
+
+            if driver is not None:
+                try:
+                    driver.quit()
+                except Exception:
+                    pass
+
+            raise
 
     def __enter__(self):
         self.start()

@@ -29,10 +29,10 @@ pytest -m selenium -q
 |---------|---------------|
 | `src/lab_fw/` | framework (api, ui, config, reporting, plugin pytest) |
 | `tests/` | suite pytest |
-| `Dockerfile` | multi-stage: `local` (CA Avast) / `ci` |
-| `docker-compose.yml` | `mock-api` + `tests` |
+| `Dockerfile` | multi-stage: `local` (CA Avast) / `ci` / `playwright` |
+| `docker-compose.yml` | `mock-api` + `tests`; profile `selenium`, `playwright` |
 | `.github/workflows/tests.yml` | unit/API na runnerze (bez UI/compose) |
-| `.github/workflows/ci.yml` | Docker Compose na GitHub Actions |
+| `.github/workflows/ci.yml` | Compose: API → Selenium Grid → Playwright w Dockerze |
 
 ## Zmienne środowiskowe
 
@@ -43,6 +43,8 @@ pytest -m selenium -q
 | `LAB_FW_API_TOKEN` | opcjonalny Bearer token |
 | `LAB_FW_TIMEOUT_S` / `LAB_FW_UI_TIMEOUT_S` | timeouty |
 | `LAB_FW_LOG_LEVEL` | poziom logów |
+| `SELENIUM_REMOTE_URL` | URL Selenium Grid (`webdriver.Remote`); brak → lokalny Chrome |
+| `DOCKER_TARGET` | target build Compose: `ci` (domyślnie) lub `local` (CA Avast) |
 
 Sekret CI: GitHub → Settings → Secrets → `LAB_FW_API_TOKEN`.
 
@@ -54,6 +56,9 @@ Sekret CI: GitHub → Settings → Secrets → `LAB_FW_API_TOKEN`.
 | `ui` | prawdziwy Playwright |
 | `selenium` | prawdziwy Selenium |
 | `compose` | wymaga usługi `mock-api` z Compose |
+| `parallel_lab` | ćwiczenia M1 (xdist, pliki, lock) |
+| `distributed_lab` | ćwiczenia L2/L3 |
+| `serial` | wspólny stan (module-scoped UI/Selenium); nie uruchamiać z `-n` |
 
 ## Docker
 
@@ -61,6 +66,7 @@ Sekret CI: GitHub → Settings → Secrets → `LAB_FW_API_TOKEN`.
 
 - **`ci`** — na GitHub / Linux bez firmowego MITM
 - **`local`** — kopiuje `avast-root.crt` (plik lokalny, nie w git)
+- **`playwright`** — obraz bazowy Microsoft Playwright z Chromium (profile `playwright` w Compose)
 
 `Dockerfile.local` i `avast-root.crt` są w `.gitignore`.
 
@@ -76,13 +82,34 @@ CMD obrazu: `pytest -m "not ui and not selenium"` — **obejmuje** testy `compos
 
 ### Docker Compose
 
-```bash
-docker compose up --build --abort-on-container-exit
+**Domyślny przebieg (API, compose, parallel_lab — bez UI):**
 
-DOCKER_TARGET=local docker compose up --build --abort-on-container-exit
+```bash
+docker compose up --build --abort-on-container-exit tests
+docker compose down
+
+DOCKER_TARGET=local docker compose up --build --abort-on-container-exit tests
 ```
 
-Usługi: `mock-api` (MockServer `:1080`) + `tests` (build + pytest).
+**Profile `selenium`** — Grid + testy w obrazie `ci`:
+
+```bash
+docker compose --profile selenium run --build --rm selenium-tests
+docker compose --profile selenium run --build --rm selenium-tests-serial
+docker compose --profile selenium down
+```
+
+- `selenium` — `selenium/standalone-chrome`, porty `4444` (WebDriver), `7900` (noVNC)
+- w `selenium-tests*` ustawione jest `SELENIUM_REMOTE_URL=http://selenium:4444`
+
+**Profile `playwright`** — UI Playwright w obrazie `playwright`:
+
+```bash
+docker compose --profile playwright run --build --rm playwright-tests
+docker compose --profile playwright run --build --rm playwright-tests-serial
+```
+
+Usługi domyślne (bez profile): `mock-api` (`:1080`) + `tests` (`${DOCKER_TARGET:-ci}`, CMD z Dockerfile).
 
 `LAB_FW_BASE_URL` **nie** jest ustawiane globalnie w compose (starsze testy oczekują `example.com` / MockTransport). Testy compose wołają `http://mock-api:1080` wprost.
 
@@ -91,7 +118,7 @@ Usługi: `mock-api` (MockServer `:1080`) + `tests` (build + pytest).
 | Workflow | Co robi |
 |----------|---------|
 | **tests** | `pip install` + `pytest -m "not ui and not selenium and not compose"` + artefakt Allure |
-| **CI** | `docker compose` z `DOCKER_TARGET=ci` — także `@pytest.mark.compose` |
+| **CI** | kroki: `tests` → `down` → Selenium (parallel + serial) → `down` → Playwright (parallel + serial); `DOCKER_TARGET=ci` |
 
 | Gdzie | mock-api? | Testy compose |
 |-------|-----------|---------------|
@@ -466,10 +493,10 @@ To utrzymuje czysty stan między testami wykonywanymi sekwencyjnie. Nie zastępu
 #### 1. Uruchomienie Compose
 
 ```bash
-docker compose up --build --abort-on-container-exit
+docker compose up --build --abort-on-container-exit tests
 ```
 
-Uruchamia serwisy Compose i kontener testów zgodnie z konfiguracją projektu.
+Uruchamia `mock-api` i kontener `tests` (API / compose / parallel_lab, bez UI).
 
 #### 2. Sprawdzenie grupowania testów Compose
 
@@ -494,7 +521,7 @@ Przy uruchomieniu przez Compose serwis `mock-api` musi być dostępny z kontener
 Testy zwykłe i Compose są rozdzielone:
 
 - `.github/workflows/tests.yml` — `-n auto`, bez markerów `ui`, `selenium`, `compose`.
-- `.github/workflows/ci.yml` — `docker compose up --build --abort-on-container-exit`.
+- `.github/workflows/ci.yml` — najpierw serwis `tests`, potem profile `selenium` i `playwright` (patrz Lab M2).
 - `Dockerfile` — `-n auto --dist loadgroup` dla pytest w kontenerze.
 
 CI oddziela główny suite od testów wymagających współdzielonego MockServer.
@@ -529,6 +556,74 @@ Pliki `shared_report*.txt` w katalogu laby to lokalne artefakty; nie commituj ic
 - **L3** — badanie awarii po logach i innych sygnałach.
 
 **Idea M1:** równoległość przyspiesza niezależne testy, ale współdzielone zasoby wymagają jawnej strategii izolacji. Grupowanie, osobne zasoby na worker i cleanup rozwiązują różne problemy i się nie zastępują.
+
+## Lab M2 — Zdalna przeglądarka (Selenium Grid) i UI w Dockerze
+
+### Cel
+
+Przenieść przeglądarkę do osobnego kontenera (Grid), równoleglić niezależne testy UI/Selenium i wyraźnie oddzielić scenariusze ze **wspólnym stanem** (fixture module-scoped) markerem `serial`.
+
+### Zmiany w kodzie
+
+| Element | Rola |
+|---------|------|
+| `Settings.selenium_remote_url` | z `SELENIUM_REMOTE_URL`; same białe znaki → brak → lokalny Chrome |
+| `SeleniumClient.start()` | `Chrome()` lub `Remote()`; przy błędzie startu — `quit()` i ponowne rzucenie wyjątku |
+| `@pytest.mark.serial` | łańcuchy z `ui_client_module` / `selenium_client_module` w `test_login_page.py`, `test_secure_page.py`, `test_login_page_selenium.py`, `test_secure_page_selenium.py`; uruchamiać bez `-n` |
+| `tests/test_selenium_client.py` | mocki Remote/Chrome + opcjonalnie żywy Grid |
+| `docker-compose.yml` | Grid, `selenium-tests` / `selenium-tests-serial`, `playwright-tests` / `playwright-tests-serial` |
+| `Dockerfile` target `playwright` | oficjalny obraz Playwright Python (przeglądarki w środku) |
+
+Grid: `SE_NODE_MAX_SESSIONS=2` zgodne z `-n 2` w `selenium-tests`.
+
+### Selektory w Compose
+
+| Usługa | pytest `-m` |
+|--------|-------------|
+| `selenium-tests` | `selenium and not serial` |
+| `selenium-tests-serial` | `selenium and serial` |
+| `playwright-tests` | `ui and not selenium and not serial` |
+| `playwright-tests-serial` | `ui and not selenium and serial` |
+
+### Uruchomienie lokalne
+
+```bash
+docker compose --profile selenium up -d selenium
+export SELENIUM_REMOTE_URL=http://localhost:4444
+pytest -m "selenium and not serial" -n 2 -vv
+pytest -m "selenium and serial" -vv
+docker compose --profile selenium down
+
+pytest -m "ui and not selenium and not serial" -n 2 -vv
+pytest -m "ui and not selenium and serial" -vv
+```
+
+noVNC przy działającym `selenium`: [http://localhost:7900](http://localhost:7900).
+
+### CI (`.github/workflows/ci.yml`)
+
+1. `docker compose up … tests`  
+2. `docker compose down`  
+3. Selenium parallel → serial → `docker compose --profile selenium down`  
+4. Playwright parallel → serial  
+
+Brak kroku `playwright down` — na ephemeral runnerze zwykle wystarczy; opcjonalnie dodaj `docker compose --profile playwright down`.
+
+### M1 ↔ M2
+
+| Problem | M1 | M2 |
+|---------|----|----|
+| Wspólny MockServer | `xdist_group` + `loadgroup` | bez zmian |
+| Jeden lokalny driver | loadgroup / sekwencyjnie | sesje Grid + `serial` dla module fixtures |
+| Playwright w CI bez instalacji na runnerze | — | target `playwright` w Dockerze |
+
+### Checklist review
+
+- Mocki: `pytest tests/test_selenium_client.py -k "not connects_to_real" -q`
+- Żywy Grid (serwis na `:4444`): `test_selenium_client_connects_to_real_grid` bez env ustawia `http://localhost:4444`; `test_selenium_client_connects_to_real_grid_2` wymaga `SELENIUM_REMOTE_URL` (fixtura `selenium_client`). W Compose/CI: `http://selenium:4444`.
+- Pary `*fixture_module` — tylko w przebiegu `serial`, nie pod `-n 2`.
+
+**Idea M2:** runner i przeglądarka są rozdzielone; równoległość UI opiera się na wielu sesjach Grid lub workerach Playwright, a nie na jednym nieoznaczonym współdzielonym driverze.
 
 ## Allure
 

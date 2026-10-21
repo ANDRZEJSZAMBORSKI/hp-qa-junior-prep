@@ -32,3 +32,14 @@ RUN pip install --no-cache-dir --no-build-isolation -e ".[dev]"
 #RUN playwright install --with-deps chromium
 
 CMD ["pytest", "-m", "not ui and not selenium", "-q", "--tb=line", "-n", "auto", "--dist", "loadgroup"]
+
+FROM mcr.microsoft.com/playwright/python:v1.63.0-noble AS playwright
+
+WORKDIR /app
+
+COPY pyproject.toml README.md ./
+COPY src ./src
+COPY tests ./tests
+
+RUN pip install --no-cache-dir "setuptools>=68" wheel
+RUN pip install --no-cache-dir --no-build-isolation -e ".[dev]"
