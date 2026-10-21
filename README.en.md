@@ -621,6 +621,7 @@ There is no `playwright down` step; ephemeral runners usually do not need it. Ad
 
 - Mocks: `pytest tests/test_selenium_client.py -k "not connects_to_real" -q`
 - Live Grid (Grid listening on `:4444`): `test_selenium_client_connects_to_real_grid` defaults to `http://localhost:4444` when env is unset; `test_selenium_client_connects_to_real_grid_2` needs `SELENIUM_REMOTE_URL` via the `selenium_client` fixture. Compose/CI uses `http://selenium:4444`.
+- Playwright in Docker: pin `playwright` 1.63.x to match image `mcr.microsoft.com/playwright/python:v1.63.0-noble`; parallel UI runs use `-p no:anyio` (sync Playwright + xdist).
 - `*fixture_module` pairs — only in `serial` runs, not under `-n 2`.
 
 **M2 takeaway:** separate runner and browser; UI parallelism uses multiple Grid sessions or Playwright workers, not one unmarked shared driver.

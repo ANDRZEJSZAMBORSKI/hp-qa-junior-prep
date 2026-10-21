@@ -621,6 +621,7 @@ Brak kroku `playwright down` — na ephemeral runnerze zwykle wystarczy; opcjona
 
 - Mocki: `pytest tests/test_selenium_client.py -k "not connects_to_real" -q`
 - Żywy Grid (serwis na `:4444`): `test_selenium_client_connects_to_real_grid` bez env ustawia `http://localhost:4444`; `test_selenium_client_connects_to_real_grid_2` wymaga `SELENIUM_REMOTE_URL` (fixtura `selenium_client`). W Compose/CI: `http://selenium:4444`.
+- Playwright w Dockerze: pakiet `playwright` 1.63.x zgodny z obrazem `v1.63.0-noble`; równoległy UI — `-p no:anyio` (sync Playwright + xdist).
 - Pary `*fixture_module` — tylko w przebiegu `serial`, nie pod `-n 2`.
 
 **Idea M2:** runner i przeglądarka są rozdzielone; równoległość UI opiera się na wielu sesjach Grid lub workerach Playwright, a nie na jednym nieoznaczonym współdzielonym driverze.

@@ -635,6 +635,7 @@ noVNC при поднятом `selenium`: [http://localhost:7900](http://localho
 
 - Мок-тесты: `pytest tests/test_selenium_client.py -k "not connects_to_real" -q`
 - Живой Grid (нужен запущенный `selenium` на `:4444`): `test_selenium_client_connects_to_real_grid` при отсутствии env сам подставляет `http://localhost:4444`; `test_selenium_client_connects_to_real_grid_2` — только через `SELENIUM_REMOTE_URL` (фикстура `selenium_client`). В Compose/CI URL задаётся как `http://selenium:4444`.
+- Playwright в Docker: версия пакета `playwright` (1.63.x) должна совпадать с образом `mcr.microsoft.com/playwright/python:v1.63.0-noble`; параллельный прогон UI — с `-p no:anyio` (sync Playwright + xdist).
 - Module-pair тесты (`*fixture_module`) — только в прогоне `serial`, не в `-n 2`.
 
 **Главная идея M2:** runner и браузер разделены; параллелизм UI опирается на несколько сессий Grid или workers Playwright, а не на один shared driver без маркировки.
