@@ -105,10 +105,12 @@ def main():
     assert t2.finish >= 0
     print('class StepTimer OK')
 
-    with step_timer("cm2-ok"):
+    with step_timer("cm2-ok") as t:
+        print(t)
         time.sleep(0.01)
     try:
-        with step_timer("cm2-fail"):
+        with step_timer("cm2-fail") as t:
+            print(t)
             raise RuntimeError("x")
     except RuntimeError:
         pass
