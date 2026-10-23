@@ -21,6 +21,10 @@ build/
 # test reports
 allure-results/
 allure-report/
+.coverage
+htmlcov/
+_allure_test/
+_allure_chk/
 
 # lab-fw test artifacts
 .lab_fw_artifacts/

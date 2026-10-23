@@ -59,6 +59,7 @@ pytest -m selenium -q
 | `parallel_lab` | упражнения M1 (xdist, файлы, lock) |
 | `distributed_lab` | упражнения L2/L3 |
 | `serial` | общее состояние (module-scoped UI/Selenium); не параллелить (`-n`) |
+| `reporting` | тесты слоя Allure / `lab_fw.reporting` |
 
 ## Docker
 
@@ -126,7 +127,7 @@ docker compose --profile playwright run --build --rm playwright-tests-serial
 | Workflow | Что делает |
 |----------|------------|
 | **tests** | `pip install` + `pytest -m "not ui and not selenium and not compose"` + Allure artifact |
-| **CI** | по шагам: `tests` → `down` → Selenium (parallel + serial) → `down` → Playwright (parallel + serial); `DOCKER_TARGET=ci` |
+| **CI** | по шагам: `tests` → `down` → Selenium → Playwright; `DOCKER_TARGET=ci`; artifact **`allure-results`** (полный Docker-прогон) |
 
 Логика маркера `compose`:
 
@@ -640,14 +641,67 @@ noVNC при поднятом `selenium`: [http://localhost:7900](http://localho
 
 **Главная идея M2:** runner и браузер разделены; параллелизм UI опирается на несколько сессий Grid или workers Playwright, а не на один shared driver без маркировки.
 
-## Allure
+## Lab N1 — Allure analytics hygiene
+
+### Цель
+
+Сделать отчёт Allure **пригодным для анализа**: метки (epic/feature/severity), окружение прогона, категории падений, steps/attachments через слой фреймворка — и собрать результаты из **полного CI** (Docker), не только из быстрого workflow `tests`.
+
+### Что добавлено
+
+| Компонент | Назначение |
+|-----------|------------|
+| `lab_fw.reporting` | `step`, `attach_*`, декораторы `epic`, `feature`, `title`, `description`, `severity(SeverityLevel)`; без allure — no-op |
+| `tests/test_reporting.py` | маркер `@pytest.mark.reporting` |
+| `tests/test_api_client.py` | пример `@feature("API Client")`, `@severity(SeverityLevel.CRITICAL)` |
+| `categories.json` | **статический** файл в репо — правила вкладки **Categories** в Allure |
+| `tests/conftest.py` | при `--alluredir`: копирует `categories.json` в results; пишет **динамический** `environment.properties` (pytest/allure версии, OS, Python, Local/Docker/GitHub Actions); только master pytest, не xdist worker |
+| `docker-compose.yml` | `--alluredir=/app/allure-results`, volume `./allure-results` на всех test-сервисах |
+| `.github/workflows/ci.yml` | `Prepare Allure results`, upload artifact; закомментирован `# cp environment.properties` — **учебный пример** статического env (в проекте env генерируется в conftest) |
+| `Dockerfile` | `COPY categories.json` в образ (нужно для conftest внутри контейнера) |
+
+### Где скачать отчёт на GitHub
+
+| Workflow | Что в artifact `allure-results` |
+|----------|----------------------------------|
+| **tests** | unit/API без UI, compose, selenium (`not ui and not selenium and not compose`) |
+| **CI** | API + compose + parallel_lab + **Selenium + Playwright** (все этапы пишут в одну папку на runner) |
+
+Скачать ZIP → локально `allure serve allure-results` (нужен [Allure CLI](https://allurereport.org/docs/install/)).
+
+### Локальный прогон
+
+```bash
+pytest -m reporting -q --alluredir=allure-results
+pytest tests/test_api_client.py -q --alluredir=allure-results
+allure serve allure-results
+```
+
+При `--alluredir` conftest сам кладёт `categories.json` и `environment.properties` в `allure-results/`.
+
+### Что проверить в UI Allure
+
+- **Behaviors** — epic/feature (если повесил декораторы на тесты).
+- **Categories** — группы из `categories.json` (таймауты, сеть, 5xx, assert, broken).
+- **Environment** — поля из `environment.properties`.
+- **Steps / Attachments** — шаги `ApiClient` и `lab_fw.reporting.step`.
+
+### Связь с N2
+
+Feature/epic в Allure — задел под связку с **TestRail** (milestone, case id) в фазе **N2**.
+
+**Главная идея N1:** отчёт строится через **слой фреймворка**; метаданные (env, categories) автоматизируются; CI отдаёт **полный** snapshot прогона в artifact.
+
+## Allure (кратко)
 
 ```bash
 pytest -q --alluredir=allure-results
 allure serve allure-results
 ```
 
-В Actions артефакт `allure-results` загружается даже при падении (`if: always()`).
+Подробнее — [Lab N1](#lab-n1--allure-analytics-hygiene) и [Reporting](src/lab_fw/reporting/README.md).
+
+В Actions artifact `allure-results` загружается с `if: always()` (workflow **tests** и **CI**).
 
 ## Документация модулей
 

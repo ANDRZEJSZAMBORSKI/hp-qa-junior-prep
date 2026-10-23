@@ -51,7 +51,8 @@ markers = [
     "compose: tests that require Docker Compose services",
     "distributed_lab: distributed_lab tests", 
     "parallel_lab: parallel_lab tests",
-    "serial: serial tests"
+    "serial: serial tests",
+    "reporting: reporting tests"
 ]
 [project.entry-points.pytest11]
 lab_fw = "lab_fw.pytest_plugin.plugin"

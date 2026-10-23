@@ -5,7 +5,12 @@ from lab_fw.core.logging_setup import setup_logging
 from lab_fw.api.client import ApiClient
 from lab_fw.ui.client import UIClient
 from lab_fw.ui.selenium_client import SeleniumClient
-
+import os
+import platform
+import sys
+from importlib.metadata import PackageNotFoundError, version
+from pathlib import Path
+import shutil
 
 @pytest.fixture
 def settings() -> Settings:
@@ -15,6 +20,53 @@ def settings() -> Settings:
 def pytest_configure(config):
     """Called once when pytest starts."""
     setup_logging(get_settings().log_level)
+
+    # Only the main pytest process should write Allure metadata.
+    if hasattr(config, "workerinput"):
+        return
+
+    results_dir = config.getoption("allure_report_dir", default=None)
+    if not results_dir:
+        return
+
+    results_path = Path(results_dir)
+    results_path.mkdir(parents=True, exist_ok=True)
+
+    categories_source = Path(config.rootpath) / "categories.json"
+    if categories_source.is_file():
+        shutil.copy2(categories_source, results_path / "categories.json")
+
+    try:
+        pytest_version = version("pytest")
+    except PackageNotFoundError:
+        pytest_version = "not installed"
+
+    try:
+        allure_version = version("allure-pytest")
+    except PackageNotFoundError:
+        allure_version = "not installed"
+
+    if os.getenv("GITHUB_ACTIONS", "").lower() == "true":
+        execution_environment = "GitHub Actions"
+    elif Path("/.dockerenv").exists():
+        execution_environment = "Docker"
+    else:
+        execution_environment = "Local"
+
+    properties = {
+        "Project": "hp-qa-junior-prep",
+        "Test framework": f"pytest {pytest_version}",
+        "Reporting": f"Allure (allure-pytest {allure_version})",
+        "Operating system": platform.platform(),
+        "Python version": sys.version.split()[0],
+        "Execution environment": execution_environment,
+    }
+
+    environment_file = results_path / "environment.properties"
+    environment_file.write_text(
+        "".join(f"{key}={value}\n" for key, value in properties.items()),
+        encoding="utf-8",
+    )
 
 
 @pytest.hookimpl(tryfirst=True)

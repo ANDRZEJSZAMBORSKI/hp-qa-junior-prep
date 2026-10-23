@@ -11,8 +11,18 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Prepare Allure results
+        run: |
+          rm -rf allure-results
+          mkdir -p allure-results
+          cp categories.json allure-results/
+      #    cp environment.properties allure-results/
+
+
 
       #- name: Build CI image
       #  run: docker build --target ci -t hp-qa-junior-prep:ci .
@@ -21,6 +31,7 @@ jobs:
       #  run: docker run --rm hp-qa-junior-prep:ci
 
       - name: Run API and non-UI tests
+        if: ${{ !cancelled() }}
         run: docker compose up --build --abort-on-container-exit tests
         env:
           DOCKER_TARGET: ci
@@ -30,11 +41,13 @@ jobs:
         run: docker compose down
 
       - name: Run Selenium tests in parallel
+        if: ${{ !cancelled() }}
         run: docker compose --profile selenium run --build --rm selenium-tests
         env:
           DOCKER_TARGET: ci
       
       - name: Run Selenium tests serially
+        if: ${{ !cancelled() }}
         run: docker compose --profile selenium run --build --rm selenium-tests-serial
         env:
           DOCKER_TARGET: ci
@@ -45,11 +58,13 @@ jobs:
 
 
       - name: Run Playwright tests in parallel
+        if: ${{ !cancelled() }}
         run: docker compose --profile playwright run --build --rm playwright-tests
         env:
           DOCKER_TARGET: ci
 
       - name: Run Playwright tests serially
+        if: ${{ !cancelled() }}
         run: docker compose --profile playwright run --build --rm playwright-tests-serial
         env:
           DOCKER_TARGET: ci
@@ -57,3 +72,11 @@ jobs:
       - name: Stop Playwright containers
         if: always()
         run: docker compose --profile playwright down
+
+      - name: Upload Allure results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-results
+          path: allure-results/
+          if-no-files-found: warn

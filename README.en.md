@@ -59,6 +59,7 @@ CI secret: GitHub → Settings → Secrets → `LAB_FW_API_TOKEN`.
 | `parallel_lab` | M1 exercises (xdist, files, lock) |
 | `distributed_lab` | L2/L3 exercises |
 | `serial` | shared state (module-scoped UI/Selenium); do not run under `-n` |
+| `reporting` | Allure / `lab_fw.reporting` layer tests |
 
 ## Docker
 
@@ -118,7 +119,7 @@ Default services (no profile): `mock-api` (`:1080`) + `tests` (`${DOCKER_TARGET:
 | Workflow | What it does |
 |----------|----------------|
 | **tests** | `pip install` + `pytest -m "not ui and not selenium and not compose"` + Allure artifact |
-| **CI** | steps: `tests` → `down` → Selenium (parallel + serial) → `down` → Playwright (parallel + serial); `DOCKER_TARGET=ci` |
+| **CI** | steps: `tests` → `down` → Selenium → Playwright; `DOCKER_TARGET=ci`; artifact **`allure-results`** (full Docker run) |
 
 | Where | mock-api? | Compose tests |
 |-------|-----------|---------------|
@@ -626,14 +627,67 @@ There is no `playwright down` step; ephemeral runners usually do not need it. Ad
 
 **M2 takeaway:** separate runner and browser; UI parallelism uses multiple Grid sessions or Playwright workers, not one unmarked shared driver.
 
-## Allure
+## Lab N1 — Allure analytics hygiene
+
+### Goal
+
+Make Allure reports **useful for analysis**: labels (epic/feature/severity), run environment, failure categories, steps/attachments via the framework layer — and collect results from the **full CI** Docker pipeline, not only the fast `tests` workflow.
+
+### What was added
+
+| Piece | Role |
+|-------|------|
+| `lab_fw.reporting` | `step`, `attach_*`, decorators `epic`, `feature`, `title`, `description`, `severity(SeverityLevel)`; no-op without allure |
+| `tests/test_reporting.py` | marker `@pytest.mark.reporting` |
+| `tests/test_api_client.py` | example `@feature("API Client")`, `@severity(SeverityLevel.CRITICAL)` |
+| `categories.json` | **static** repo file — Allure **Categories** rules |
+| `tests/conftest.py` | with `--alluredir`: copies `categories.json` into results; writes **dynamic** `environment.properties`; main process only (not xdist workers) |
+| `docker-compose.yml` | `--alluredir=/app/allure-results`, shared `./allure-results` volume |
+| `.github/workflows/ci.yml` | prepare folder, upload artifact; commented `# cp environment.properties` — **teaching example** of static env (project uses conftest) |
+| `Dockerfile` | `COPY categories.json` for conftest inside containers |
+
+### Downloading reports on GitHub
+
+| Workflow | `allure-results` contents |
+|----------|---------------------------|
+| **tests** | unit/API without UI/compose/selenium |
+| **CI** | API + compose + parallel_lab + **Selenium + Playwright** (one folder on the runner) |
+
+Download ZIP → `allure serve allure-results` locally ([Allure CLI](https://allurereport.org/docs/install/)).
+
+### Local run
+
+```bash
+pytest -m reporting -q --alluredir=allure-results
+pytest tests/test_api_client.py -q --alluredir=allure-results
+allure serve allure-results
+```
+
+With `--alluredir`, conftest writes `categories.json` and `environment.properties` into `allure-results/`.
+
+### What to check in Allure UI
+
+- **Behaviors** — epic/feature (decorated tests).
+- **Categories** — rules from `categories.json`.
+- **Environment** — `environment.properties`.
+- **Steps / Attachments** — `ApiClient` and `lab_fw.reporting.step`.
+
+### Link to N2
+
+Allure feature/epic prepares **TestRail** mapping (milestone, case id) in **N2**.
+
+**N1 takeaway:** reporting goes through the **framework layer**; metadata is automated; CI publishes a **full** run in an artifact.
+
+## Allure (short)
 
 ```bash
 pytest -q --alluredir=allure-results
 allure serve allure-results
 ```
 
-Artifact upload uses `if: always()`.
+See [Lab N1](#lab-n1--allure-analytics-hygiene) and [Reporting](src/lab_fw/reporting/README.en.md).
+
+Artifact upload uses `if: always()` (**tests** and **CI** workflows).
 
 ## Module docs
 

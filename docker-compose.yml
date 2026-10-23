@@ -14,6 +14,19 @@ services:
       #LAB_FW_BASE_URL: http://mock-api:1080
     depends_on:
       - mock-api
+    volumes:
+      - ./allure-results:/app/allure-results
+    command: [
+              "pytest",
+              "-m",
+              "not ui and not selenium",
+              "-q",
+              "--tb=line",
+              "-n",
+              "auto",
+              "--dist",
+              "loadgroup",
+              "--alluredir=/app/allure-results"]
   
   selenium:
     image: selenium/standalone-chrome:4.48.0-20260905
@@ -44,7 +57,9 @@ services:
     depends_on:
       selenium:
         condition: service_healthy
-    command: ["pytest", "tests", "-m", "selenium and not serial", "-n", "2", "-vv"]
+    volumes:
+      - ./allure-results:/app/allure-results
+    command: ["pytest", "tests", "-m", "selenium and not serial", "-n", "2", "-vv", "--alluredir=/app/allure-results"]
     profiles:
       - selenium
   
@@ -59,7 +74,9 @@ services:
     depends_on:
       selenium:
         condition: service_healthy
-    command: ["pytest", "tests", "-m", "selenium and serial", "-vv"]
+    volumes:
+      - ./allure-results:/app/allure-results
+    command: ["pytest", "tests", "-m", "selenium and serial", "-vv", "--alluredir=/app/allure-results"]
     profiles:
       - selenium
   
@@ -71,7 +88,19 @@ services:
       target: playwright
     environment:
       LAB_FW_API_TOKEN: ${LAB_FW_API_TOKEN:-ci-demo-token}
-    command: ["pytest", "-p", "no:anyio", "tests", "-m", "ui and not selenium and not serial", "-n", "2", "-vv"]
+    volumes:
+      - ./allure-results:/app/allure-results
+    command: [
+              "pytest",
+              "-p",
+              "no:anyio",
+              "tests",
+              "-m",
+              "ui and not selenium and not serial",
+              "-n",
+              "2",
+              "-vv",
+              "--alluredir=/app/allure-results"]
     profiles:
       - playwright
 
@@ -82,6 +111,16 @@ services:
       target: playwright
     environment:
       LAB_FW_API_TOKEN: ${LAB_FW_API_TOKEN:-ci-demo-token}
-    command: ["pytest", "-p", "no:anyio", "tests", "-m", "ui and not selenium and serial", "-vv"]
+    volumes:
+      - ./allure-results:/app/allure-results
+    command: [
+              "pytest",
+              "-p",
+              "no:anyio",
+              "tests",
+              "-m",
+              "ui and not selenium and serial",
+              "-vv",
+              "--alluredir=/app/allure-results"]
     profiles:
       - playwright

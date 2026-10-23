@@ -14,37 +14,49 @@ W `dev` jest `allure-pytest`. Bez niego funkcje warstwy to no-op (suite działa 
 
 ## API
 
-| Funkcja | Cel |
-|---------|-----|
+| Funkcja / dekorator | Przeznaczenie |
+|---------------------|---------------|
 | `step(title)` | krok raportu (context manager) |
 | `attach_text(name, body)` | załącznik tekstowy |
 | `attach_json(name, data)` | załącznik JSON |
+| `@epic(value)` | epic w Behaviors |
+| `@feature(value)` | feature w Behaviors |
+| `@title(value)` | tytuł testu w raporcie |
+| `@description(value)` | opis |
+| `@severity(SeverityLevel.*)` | severity (enum `SeverityLevel`) |
 
 ```python
-from lab_fw.reporting import step, attach_text, attach_json
+from lab_fw.reporting import step, attach_json, feature, severity, SeverityLevel
 
-with step("load users"):
-    attach_json("payload", {"ok": True})
+@feature("API Client")
+@severity(SeverityLevel.CRITICAL)
+def test_example():
+    with step("call API"):
+        attach_json("payload", {"ok": True})
 ```
 
-`ApiClient` sam otwiera krok `METHOD /path` i przy sukcesie dołącza obcięty response.
+`ApiClient` otwiera krok `METHOD /path` i przy sukcesie dołącza obcięty response.
+
+## Metadane Allure (Lab N1)
+
+Przy `--alluredir` rootowy `tests/conftest.py`:
+
+- kopiuje **`categories.json`** z katalogu głównego repo do folderu wyników;
+- zapisuje **`environment.properties`** (wersje pytest/allure, OS, Python, Local / Docker / GitHub Actions).
+
+Statyczny `environment.properties` w repo **nie jest używany** — patrz zakomentowany przykład w `.github/workflows/ci.yml`.
 
 ## Uruchomienie z Allure
 
 ```bash
 pytest -q --alluredir=allure-results
+allure serve allure-results
 ```
 
 Katalogi `allure-results/` i `allure-report/` są w `.gitignore`.
 
-Opcjonalnie (jeśli jest Allure CLI):
-
-```bash
-allure serve allure-results
-```
-
 ## Testy warstwy
 
 ```bash
-pytest -q tests/test_reporting.py
+pytest -m reporting -q
 ```

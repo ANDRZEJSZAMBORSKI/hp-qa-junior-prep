@@ -2,7 +2,7 @@ FROM python:3.11-slim AS base
 
 WORKDIR /app
 
-COPY pyproject.toml README.md ./
+COPY pyproject.toml README.md categories.json ./
 COPY src ./src
 COPY tests ./tests
 
@@ -37,7 +37,7 @@ FROM mcr.microsoft.com/playwright/python:v1.63.0-noble AS playwright
 
 WORKDIR /app
 
-COPY pyproject.toml README.md ./
+COPY pyproject.toml README.md categories.json ./
 COPY src ./src
 COPY tests ./tests
 

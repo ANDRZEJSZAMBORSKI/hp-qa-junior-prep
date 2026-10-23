@@ -1,0 +1,25 @@
+[
+  {
+    "name": "Timeouts and deadlines",
+    "matchedStatuses": ["broken", "failed"],
+    "messageRegex": "(?i).*(timeout|timed out|deadline exceeded|deadline).*"
+  },
+  {
+    "name": "Connection and network errors",
+    "matchedStatuses": ["broken", "failed"],
+    "messageRegex": "(?i).*(connection refused|connection reset|connecterror|connecttimeout|network is unreachable).*"
+  },
+  {
+    "name": "HTTP 5xx server errors",
+    "matchedStatuses": ["broken", "failed"],
+    "messageRegex": "(?s).*(HTTPStatusError|Internal Server Error|Bad Gateway|Service Unavailable|Gateway Timeout|status code 5[0-9][0-9]).*"
+  },
+  {
+    "name": "Assertion failures",
+    "matchedStatuses": ["failed"]
+  },
+  {
+    "name": "Unexpected test errors",
+    "matchedStatuses": ["broken"]
+  }
+]
