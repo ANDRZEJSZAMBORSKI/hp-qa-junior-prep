@@ -2,7 +2,7 @@
 
 [RU](README.md) · [EN](README.en.md) · **PL**
 
-Klient HTTP `ApiClient` i szkoleniowa warstwa auth.
+Klient HTTP `ApiClient` i warstwa auth (demo).
 
 ## Instalacja
 

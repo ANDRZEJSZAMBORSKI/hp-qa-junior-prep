@@ -2,9 +2,9 @@
 
 **RU** · [EN](README.en.md) · [PL](README.pl.md)
 
-Учебный модуль: **чистые моки** (`unittest.mock`, `patch`, spy, `monkeypatch`) и **`httpx.MockTransport`** на нашем `ApiClient` / `Settings` / `ApiError` / `retry_call` / logging / pytest.
+Модуль **чистые моки** (`unittest.mock`, `patch`, spy, `monkeypatch`) и **`httpx.MockTransport`** на нашем `ApiClient` / `Settings` / `ApiError` / `retry_call` / logging / pytest.
 
-Цель — не «зелёный pytest ради галочки», а уметь объяснить на собесе: *что подменяем, на каком шве, и зачем*.
+Демонстрирует подмену зависимостей на разных уровнях: объект/метод в Python и транспорт `httpx` у `ApiClient`.
 
 ---
 
@@ -13,7 +13,7 @@
 Из корня `hp-qa-junior-prep` (venv активен):
 
 ```bash
-# вся лаба
+# весь модуль mocks_lab
 pytest -v tests/mocks_lab
 
 # только чистые моки
@@ -30,7 +30,7 @@ pytest -v -m smoke tests/mocks_lab
 ```
 
 Ожидай: логи `INFO [lab_fw.api] …`, при retry — `WARNING [lab_fw.core.retry] …`, в конце все тесты **passed**.  
-Полный прогон репо: `pytest -q` (лаба + остальные тесты `lab_fw`).
+Полный прогон репо: `pytest -q` (включая `tests/mocks_lab` и остальной suite).
 
 ---
 
@@ -95,7 +95,7 @@ Handler видит настоящий `httpx.Request` (method, path, params, hea
 | Ошибка сети / timeout через клиент | `MockTransport` raise **или** `patch` + `side_effect` |
 | Интеграция `ApiClient` + `retry_call` | `MockTransport` со счётчиком attempts |
 
-На HP mid: **MockTransport / DI transport** — основной стиль для API-клиента; чистые моки — для изоляции хелперов и узких unit-тестов.
+**MockTransport / DI transport** — предпочтительный стиль для API-клиента в этом репозитории; чистые моки — для изоляции хелперов и узких unit-тестов.
 
 ---
 
@@ -103,5 +103,5 @@ Handler видит настоящий `httpx.Request` (method, path, params, hea
 
 - `ApiClient(settings, transport=…)` — точка расширения.
 - `ApiError` оборачивает `httpx.HTTPError`.
-- `retry_call` / учебный `@retry` — поверх вызовов клиента.
+- `retry_call` / декоратор `@retry` — поверх вызовов клиента.
 - Логирование уже поднимается в корневом `tests/conftest.py` (`pytest_configure` → `setup_logging`).

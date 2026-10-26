@@ -24,8 +24,8 @@ W `dev` jest `allure-pytest`. Bez niego funkcje warstwy to no-op (suite działa 
 | `@title(value)` | tytuł testu w raporcie |
 | `@description(value)` | opis |
 | `@severity(SeverityLevel.*)` | severity (enum `SeverityLevel`) |
-| `@testcase(url, name=…)` | link TMS → case TestRail (Lab N2) |
-| `@issue(url, name=…)` | link → issue Jira (Lab N2) |
+| `@testcase(url, name=…)` | link TMS → case TestRail (N2) |
+| `@issue(url, name=…)` | link → issue Jira (N2) |
 
 ```python
 from lab_fw.reporting import step, attach_json, feature, severity, SeverityLevel
@@ -42,7 +42,7 @@ def test_example():
 
 `ApiClient` otwiera krok `METHOD /path` i przy sukcesie dołącza obcięty response.
 
-## Metadane Allure (Lab N1)
+## Metadane Allure (N1)
 
 Przy `--alluredir` rootowy `tests/conftest.py`:
 
@@ -60,9 +60,9 @@ allure serve allure-results
 
 Katalogi `allure-results/` i `allure-report/` są w `.gitignore`.
 
-## TestRail i Jira (Lab N2)
+## TestRail i Jira (N2)
 
-Przy `--alluredir` dekoratory `testcase` / `issue` trafiają do **Links** w Allure. W TestRail pole **References** wiąże case z node id pytest; upload runu — **trcli** (kanał B). Szczegóły: [Lab N2](../../../README.pl.md#lab-n2--jira--testrail-trial) w README głównym.
+Przy `--alluredir` dekoratory `testcase` / `issue` trafiają do **Links** w Allure. W TestRail pole **References** wiąże case z node id pytest; upload runu — **trcli** (kanał B). Szczegóły: [N2](../../../README.pl.md#n2--jira--testrail) w README głównym.
 
 ## Testy warstwy
 

@@ -2,7 +2,7 @@
 
 **RU** · [EN](README.en.md) · [PL](README.pl.md)
 
-HTTP-клиент `ApiClient` и учебный auth-слой.
+HTTP-клиент `ApiClient` и демо-слой auth.
 
 ## Установка
 

@@ -2,9 +2,9 @@
 
 [RU](README.md) · [EN](README.en.md) · **PL**
 
-Moduł szkoleniowy: **czyste mocki** (`unittest.mock`, `patch`, spy, `monkeypatch`) oraz **`httpx.MockTransport`** na naszym `ApiClient` / `Settings` / `ApiError` / `retry_call` / logging / pytest.
+Moduł: **czyste mocki** (`unittest.mock`, `patch`, spy, `monkeypatch`) oraz **`httpx.MockTransport`** na naszym `ApiClient` / `Settings` / `ApiError` / `retry_call` / logging / pytest.
 
-Cel — nie „zielony pytest dla odznaki”, tylko umiejętność wyjaśnienia na rozmowie: *co podmieniamy, na którym szwie i po co*.
+Pokazuje podmianę zależności na dwóch poziomach: mocki obiektu/metody w Pythonie oraz transport `httpx` w `ApiClient`.
 
 ---
 
@@ -13,7 +13,7 @@ Cel — nie „zielony pytest dla odznaki”, tylko umiejętność wyjaśnienia 
 Z katalogu głównego `hp-qa-junior-prep` (aktywne venv):
 
 ```bash
-# cała laborka
+# cały moduł mocks_lab
 pytest -v tests/mocks_lab
 
 # tylko czyste mocki
@@ -25,12 +25,12 @@ pytest -v -m mocks_httpx tests/mocks_lab
 # wszystko oznaczone mocks
 pytest -v -m mocks tests/mocks_lab
 
-# smoke z laborki (stub / spy / monkeypatch)
+# smoke w module (stub / spy / monkeypatch)
 pytest -v -m smoke tests/mocks_lab
 ```
 
 Oczekuj: logi `INFO [lab_fw.api] …`; przy retry — `WARNING [lab_fw.core.retry] …`; na końcu wszystkie testy **passed**.  
-Pełny przebieg repo: `pytest -q` (laborka + pozostałe testy `lab_fw`).
+Pełny przebieg repo: `pytest -q` (w tym `tests/mocks_lab` i pozostały suite).
 
 ---
 
@@ -95,7 +95,7 @@ Wady: trochę więcej kodu w handlerze; to nadal nie live API.
 | Błąd sieci / timeout przez klienta | `MockTransport` raise **lub** `patch` + `side_effect` |
 | Integracja `ApiClient` + `retry_call` | `MockTransport` z licznikiem attempts |
 
-Na HP mid: **MockTransport / DI transport** — główny styl dla klienta API; czyste mocki — do izolacji helperów i wąskich unit-testów.
+**MockTransport / DI transport** — preferowany styl klienta API w tym repozytorium; czyste mocki — do izolacji helperów i wąskich unit-testów.
 
 ---
 
@@ -103,5 +103,5 @@ Na HP mid: **MockTransport / DI transport** — główny styl dla klienta API; c
 
 - `ApiClient(settings, transport=…)` — punkt rozszerzenia.
 - `ApiError` owija `httpx.HTTPError`.
-- `retry_call` / szkoleniowy `@retry` — wokół wywołań klienta.
+- `retry_call` / dekorator `@retry` — wokół wywołań klienta.
 - Logowanie jest już uruchamiane w rootowym `tests/conftest.py` (`pytest_configure` → `setup_logging`).

@@ -2,9 +2,9 @@
 
 [RU](README.md) · **EN** · [PL](README.pl.md)
 
-Training module: **pure mocks** (`unittest.mock`, `patch`, spy, `monkeypatch`) and **`httpx.MockTransport`** on our `ApiClient` / `Settings` / `ApiError` / `retry_call` / logging / pytest.
+Module: **pure mocks** (`unittest.mock`, `patch`, spy, `monkeypatch`) and **`httpx.MockTransport`** on our `ApiClient` / `Settings` / `ApiError` / `retry_call` / logging / pytest.
 
-Goal — not “green pytest for the badge”, but being able to explain in an interview: *what we replace, at which seam, and why*.
+Shows dependency substitution at two levels: Python object/method mocks and `httpx` transport on `ApiClient`.
 
 ---
 
@@ -95,7 +95,7 @@ Cons: a bit more handler code; still not a live API.
 | Network error / timeout through the client | `MockTransport` raise **or** `patch` + `side_effect` |
 | `ApiClient` + `retry_call` integration | `MockTransport` with an attempts counter |
 
-For HP mid: **MockTransport / DI transport** is the main style for an API client; pure mocks — for isolating helpers and narrow unit tests.
+**MockTransport / DI transport** is the preferred style for the API client in this repo; pure mocks — for isolating helpers and narrow unit tests.
 
 ---
 
@@ -103,5 +103,5 @@ For HP mid: **MockTransport / DI transport** is the main style for an API client
 
 - `ApiClient(settings, transport=…)` — extension point.
 - `ApiError` wraps `httpx.HTTPError`.
-- `retry_call` / training `@retry` — around client calls.
+- `retry_call` / `@retry` decorator — around client calls.
 - Logging is already started in root `tests/conftest.py` (`pytest_configure` → `setup_logging`).

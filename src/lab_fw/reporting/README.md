@@ -24,8 +24,8 @@ pip install -e ".[dev]"
 | `@title(value)` | заголовок теста в отчёте |
 | `@description(value)` | описание |
 | `@severity(SeverityLevel.*)` | severity (enum `SeverityLevel`) |
-| `@testcase(url, name=…)` | ссылка TMS → TestRail case (Lab N2) |
-| `@issue(url, name=…)` | ссылка → Jira issue (Lab N2) |
+| `@testcase(url, name=…)` | ссылка TMS → TestRail case (N2) |
+| `@issue(url, name=…)` | ссылка → Jira issue (N2) |
 
 ```python
 from lab_fw.reporting import step, attach_json, feature, severity, SeverityLevel
@@ -42,7 +42,7 @@ def test_example():
 
 `ApiClient` сам открывает шаг `METHOD /path` и при успехе аттачит обрезанный response.
 
-## Метаданные Allure (Lab N1)
+## Метаданные Allure (N1)
 
 При `--alluredir` корневой `tests/conftest.py`:
 
@@ -60,9 +60,9 @@ allure serve allure-results
 
 Папки `allure-results/` и `allure-report/` в `.gitignore`.
 
-## TestRail и Jira (Lab N2)
+## TestRail и Jira (N2)
 
-При `--alluredir` декораторы `testcase` / `issue` попадают в **Links** отчёта Allure. В TestRail на кейсе поле **References** связывает case с pytest node id; загрузка run — через **trcli** (канал B). Подробно: [Lab N2](../../../README.md#lab-n2--jira--testrail-trial) в корневом README.
+При `--alluredir` декораторы `testcase` / `issue` попадают в **Links** отчёта Allure. В TestRail на кейсе поле **References** связывает case с pytest node id; загрузка run — через **trcli** (канал B). Подробно: [N2](../../../README.md#n2--jira--testrail) в корневом README.
 
 ## Тесты слоя
 

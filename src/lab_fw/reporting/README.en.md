@@ -24,8 +24,8 @@ pip install -e ".[dev]"
 | `@title(value)` | test title in the report |
 | `@description(value)` | description |
 | `@severity(SeverityLevel.*)` | severity (`SeverityLevel` enum) |
-| `@testcase(url, name=…)` | TMS link → TestRail case (Lab N2) |
-| `@issue(url, name=…)` | link → Jira issue (Lab N2) |
+| `@testcase(url, name=…)` | TMS link → TestRail case (N2) |
+| `@issue(url, name=…)` | link → Jira issue (N2) |
 
 ```python
 from lab_fw.reporting import step, attach_json, feature, severity, SeverityLevel
@@ -42,7 +42,7 @@ def test_example():
 
 `ApiClient` opens a `METHOD /path` step and, on success, attaches a truncated response.
 
-## Allure metadata (Lab N1)
+## Allure metadata (N1)
 
 With `--alluredir`, root `tests/conftest.py`:
 
@@ -60,9 +60,9 @@ allure serve allure-results
 
 `allure-results/` and `allure-report/` are in `.gitignore`.
 
-## TestRail and Jira (Lab N2)
+## TestRail and Jira (N2)
 
-With `--alluredir`, `testcase` / `issue` show under **Links** in Allure. In TestRail, **References** on a case points to the pytest node id; run upload uses **trcli** (channel B). Details: [Lab N2](../../../README.en.md#lab-n2--jira--testrail-trial) in the root README.
+With `--alluredir`, `testcase` / `issue` show under **Links** in Allure. In TestRail, **References** on a case points to the pytest node id; run upload uses **trcli** (channel B). Details: [N2](../../../README.en.md#n2--jira--testrail) in the root README.
 
 ## Layer tests
 

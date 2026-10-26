@@ -2,7 +2,7 @@
 
 **RU** · [EN](README.en.md) · [PL](README.pl.md)
 
-Учебный репозиторий Junior QA Automation (Python): pytest-фреймворк `lab_fw`, API (httpx), UI (Playwright / Selenium), mocks, Allure, Docker, Docker Compose, GitHub Actions.
+Репозиторий автоматизации QA на Python: pytest-фреймворк `lab_fw`, API (httpx), UI (Playwright / Selenium), mocks, Allure, Docker, Docker Compose, GitHub Actions.
 
 ## Быстрый старт (локально)
 
@@ -56,8 +56,8 @@ pytest -m selenium -q
 | `ui` | реальный Playwright |
 | `selenium` | реальный Selenium |
 | `compose` | нужен сервис `mock-api` из Compose |
-| `parallel_lab` | упражнения M1 (xdist, файлы, lock) |
-| `distributed_lab` | упражнения L2/L3 |
+| `parallel_lab` | M1: xdist, файлы, lock |
+| `distributed_lab` | L2/L3: queue, investigation |
 | `serial` | общее состояние (module-scoped UI/Selenium); не параллелить (`-n`) |
 | `reporting` | тесты слоя Allure / `lab_fw.reporting` |
 
@@ -136,7 +136,7 @@ docker compose --profile playwright run --build --rm playwright-tests-serial
 | workflow **CI** / локальный compose | да | бегут |
 | workflow **tests** (голый runner) | нет | исключены (`not compose`) |
 
-## Схема взаимодействия API (лаба I1)
+## Схема взаимодействия API (I1)
 
 В проекте два режима тестирования API: изолированный с `httpx.MockTransport` и интеграционный с отдельным сервисом MockServer через Docker Compose. Реальный cloud/API в этих прогонах **не** вызывается — мок имитирует его HTTP-контракт (статус, JSON, заголовки).
 
@@ -177,7 +177,7 @@ Workflow **CI** поднимает Compose с `DOCKER_TARGET=ci`, чтобы и�
 
 Оба подхода снижают зависимость от доступности реального внешнего API.
 
-### Стратегия моков (лаба I2)
+### Стратегия моков (I2)
 
 | | `httpx.MockTransport` | MockServer |
 |--|------------------------|------------|
@@ -201,7 +201,7 @@ Compose-контракт в `test_mock_api_users`:
 
 `LAB_FW_BASE_URL` в Compose глобально не задаём: compose-тесты передают `base_url="http://mock-api:1080"` явно в `Settings`.
 
-### Негативные интеграционные сценарии (лаба I3)
+### Негативные интеграционные сценарии (I3)
 
 В `tests/test_compose_api.py` (маркер `compose`, тот же `reset_mockserver`):
 
@@ -212,7 +212,7 @@ Compose-контракт в `test_mock_api_users`:
 
 Политика клиента: при 4xx/5xx `get`/`post` **возвращают** `Response` (опционально `ensure_success` → `HttpStatusError`). Транспортные сбои (timeout и т.п.) всегда через `ApiError`.
 
-### Диагностика падения тестов (лаба I4)
+### Диагностика падения тестов (I4)
 
 | Ситуация | Где смотреть | Что проверить |
 |---|---|---|
@@ -242,9 +242,9 @@ Compose-контракт в `test_mock_api_users`:
 
 **Быстрый алгоритм:** тест упал → прочитай traceback → определи, это HTTP-ответ или транспортная ошибка → если проблема в Compose, проверь `tests`, затем `mock-api` → в CI открой упавший step и скачай доступный артефакт.
 
-## Распределённые системы: теория и термины (лаба L1)
+## Распределённые системы: теория и термины (L1)
 
-Краткий глоссарий mid-уровня. Где уместно — связь с `lab_fw` (retry, timeout, `ApiError`, Compose/CI).
+Термины и связь с реализацией в `lab_fw` (retry, timeout, `ApiError`, Compose/CI).
 
 ### 1. Async communication
 
@@ -310,9 +310,9 @@ Timeout может привести к retry, но это разные меха�
 
 Успех локально не доказывает CI. Контролировать: версию Python/зависимостей, секреты/env, состав образа, доступность mock/внешних сервисов, команду pytest в workflow. В этом репо Compose даёт согласованный набор сервисов; CI проверяет воспроизводимость.
 
-## Лаба L2: очередь, retry, timeout, deadline, idempotency
+## L2 — очередь, retry, timeout, deadline, idempotency
 
-Практика к глоссарию [L1](#распределённые-системы-теория-и-термины-лаба-l1): in-memory очередь → worker → HTTP через `ApiClient` из `lab_fw`, с политикой retry и ограничениями по времени.
+Реализация и тесты к разделу [L1](#распределённые-системы-теория-и-термины-l1): in-memory очередь → worker → HTTP через `ApiClient` из `lab_fw`, с политикой retry и ограничениями по времени.
 
 **Код:** `src/distributed_lab/queue_worker.py`  
 **Тесты:** `tests/distributed_lab/` (маркер `@pytest.mark.distributed_lab`)
@@ -347,7 +347,7 @@ Worker строит kwargs для клиента: `json` из `payload`, коп�
 
 При расчёте timeout для запроса worker берёт **минимум** из job timeout, оставшегося job deadline и оставшегося worker deadline. После `ApiError` worker снова проверяет deadline — финальная ошибка может быть deadline, а не последний HTTP-сбой.
 
-### Idempotency (учебный HTTP-сервер)
+### Idempotency (локальный HTTP-сервер в тестах)
 
 В `tests/distributed_lab/test_timeout.py` — `WorkerTestHandler`: при повторном POST с тем же `Idempotency-Key` сервер **не создаёт вторую запись** в `received_requests`, но отвечает данными первого запроса. Тесты проверяют:
 
@@ -360,7 +360,7 @@ Worker строит kwargs для клиента: `json` из `payload`, коп�
 ### Запуск
 
 ```bash
-# все тесты лабы L2
+# distributed_lab (L2)
 pytest -m distributed_lab -q
 
 # только модуль очереди/worker (без slow HTTP server)
@@ -378,13 +378,13 @@ Docker / MockServer для L2 **не нужны** — достаточно venv 
 2. Счётчики попыток в MockTransport или `server.request_counts` / `received_requests` в slow-server тестах.
 3. Метод job: POST не должен давать 3 попытки при типичной политике retry.
 
-## Лаба L3: чек-лист расследования неисправностей
+## L3 — расследование сбоев (чек-лист)
 
 Систематическая диагностика по пяти направлениям: **Env → Build → Logs → Metrics → Trace**. Практика: исследование **retry**, логов (`caplog`) и **ручных счётчиков расследования** (*investigation counters*).
 
 **Тесты:** `tests/distributed_lab/test_l3_investigation.py` (маркер `@pytest.mark.distributed_lab`)
 
-**Связь с другими лабами:** [I4 — где смотреть при падении pytest](#диагностика-падения-тестов-лаба-i4) (карта мест); [L2](#лаба-l2-очередь-retry-timeout-deadline-idempotency) (queue, worker, retry, deadline); L3 — **маршрут обхода** и отработка на retry + логах.
+**См. также:** [I4 — диагностика падений pytest](#диагностика-падения-тестов-i4); [L2](#l2--очередь-retry-timeout-deadline-idempotency) (queue, worker, retry, deadline). В L3 — порядок Env → Build → Logs и сценарии retry с `caplog`.
 
 ### 1. Env — переменные окружения
 
@@ -431,16 +431,15 @@ python -c "import os; print('LAB_FW_API_TOKEN:', 'SET' if os.getenv('LAB_FW_API_
 
 Поиск идентификаторов: `grep -RniE "X-Request-ID|Correlation-ID|request_id" src tests`. В L2-тестах проверяется передача `X-Request-ID: req-123`. Это **wire-level** идентификатор, не полноценная распределённая трассировка (нет auto Trace ID / span между сервисами).
 
-### I4 vs L3 vs L2 (устный якорь)
+### Как связаны I4, L3 и L2
 
 | Этап | Вопрос |
 |------|--------|
 | **I4** | Где искать? (pytest, Compose, mock-api, CI) |
 | **L3** | В каком порядке? (Env → Build → Logs → Metrics → Trace) |
-| **L2** | Queue, worker, deadline, idempotency (отдельная лаба) |
-| **Retry-lab в L3** | Практика: retry + `caplog` + investigation counters |
+| **L2** | Queue, worker, deadline, idempotency |
+| **L3 (retry)** | retry + `caplog` + investigation counters |
 
-*I4 — карта мест; L3 — маршрут обхода; L2/L3-тесты — отработка на retry и логах.*
 
 ### Запуск
 
@@ -452,11 +451,9 @@ pytest tests/distributed_lab/test_l3_investigation.py -v
 
 `MockTransport` — без реальной сети и без Docker/MockServer. Автоматические метрики и сквозная tracing-платформа в рамках L3 не реализуются.
 
-## Lab M1 — Параллельное выполнение и изоляция ресурсов
+## M1 — параллельное выполнение и изоляция ресурсов
 
-### Цель
-
-Изучить влияние параллельного выполнения pytest через `pytest-xdist` на общие ресурсы и научиться предотвращать конфликты между тестами.
+Раздел про `pytest-xdist`: общие ресурсы (MockServer, файлы, браузер), группировка `xdist_group`, `loadgroup` и изоляция артеfactов между worker-процессами.
 
 ### Стратегии изоляции
 
@@ -534,7 +531,7 @@ docker compose run --rm tests pytest tests/test_compose_api.py -vv -n auto --dis
 В проекте обычные тесты и Compose-тесты запускаются отдельно:
 
 - `.github/workflows/tests.yml` запускает тесты с `-n auto`, исключая маркеры `ui`, `selenium` и `compose`.
-- `.github/workflows/ci.yml` сначала поднимает только сервис `tests`, затем отдельно profiles `selenium` и `playwright` (см. Lab M2).
+- `.github/workflows/ci.yml` сначала поднимает только сервис `tests`, затем отдельно profiles `selenium` и `playwright` (см. [M2](#m2--удалённый-браузер-selenium-grid-и-ui-в-docker)).
 - `Dockerfile` задаёт `-n auto --dist loadgroup` для запуска pytest в контейнере.
 
 Таким образом, конфигурация CI разделяет обычные тесты и тесты, использующие общий сервис MockServer.
@@ -560,21 +557,11 @@ pytest tests/parallel_lab -m parallel_lab -n 2 -v
 
 Файлы `shared_report*.txt` в каталоге лабы — локальные артеfactы прогона; в git не коммитятся (см. `.gitignore`). Полный suite в Docker (`Dockerfile` CMD) включает `parallel_lab` вместе с остальными тестами без `ui` / `selenium`.
 
-### Связь с предыдущими лабораторными
+Параллельный прогон ускоряет независимые тесты; для общих ресурсов нужны группировка (`loadgroup`), отдельные файлы или `FileLock`, плюс корректный teardown. См. [I4](#диагностика-падения-тестов-i4), [L2](#l2--очередь-retry-timeout-deadline-idempotency), [L3](#l3--расследование-сбоев-чек-лист).
 
-- **C6** — изоляция тестов и управление общими ресурсами.
-- **G3** — параллельное выполнение в CI: `pytest-xdist`, Docker и настройки запуска.
-- **I4** — карта мест, где искать конфигурацию и результаты тестов: pytest, Compose, MockServer и CI.
-- **L2** — очередь, worker, timeout, retry и idempotency.
-- **L3** — расследование проблем по логам и другим сигналам.
+## M2 — удалённый браузер (Selenium Grid) и UI в Docker
 
-**Главная идея M1:** параллельное выполнение ускоряет независимые тесты, но общие ресурсы требуют явной стратегии изоляции. Группировка, отдельные ресурсы и корректная очистка решают разные задачи и не заменяют друг друга.
-
-## Lab M2 — Удалённый браузер (Selenium Grid) и UI в Docker
-
-### Цель
-
-Вынести браузер в отдельный контейнер (Grid), параллелить независимые UI/Selenium-тесты и явно отделить сценарии с **общим состоянием** между тестами в одном модуле.
+Браузер в контейнере Grid; параллельные UI/Selenium-тесты используют несколько сессий. Сценарии с module-scoped fixtures и общим состоянием помечены `@pytest.mark.serial` и запускаются без `-n`.
 
 ### Изменения в коде
 
@@ -632,20 +619,18 @@ noVNC при поднятом `selenium`: [http://localhost:7900](http://localho
 | Общий локальный один браузер | `loadgroup` / последовательно | Grid: несколько сессий; `serial` для module fixtures |
 | Playwright в CI без установки на runner | — | отдельный Docker target `playwright` |
 
-### Проверка (review checklist)
+### Проверка локально
 
 - Мок-тесты: `pytest tests/test_selenium_client.py -k "not connects_to_real" -q`
 - Живой Grid (нужен запущенный `selenium` на `:4444`): `test_selenium_client_connects_to_real_grid` при отсутствии env сам подставляет `http://localhost:4444`; `test_selenium_client_connects_to_real_grid_2` — только через `SELENIUM_REMOTE_URL` (фикстура `selenium_client`). В Compose/CI URL задаётся как `http://selenium:4444`.
 - Playwright в Docker: версия пакета `playwright` (1.63.x) должна совпадать с образом `mcr.microsoft.com/playwright/python:v1.63.0-noble`; параллельный прогон UI — с `-p no:anyio` (sync Playwright + xdist).
 - Module-pair тесты (`*fixture_module`) — только в прогоне `serial`, не в `-n 2`.
 
-**Главная идея M2:** runner и браузер разделены; параллелизм UI опирается на несколько сессий Grid или workers Playwright, а не на один shared driver без маркировки.
+Runner pytest и браузер разделены: UI-параллелизм — через несколько сессий Grid или workers Playwright, не через один общий driver без `@serial`.
 
-## Lab N1 — Allure analytics hygiene
+## N1 — отчёты Allure
 
-### Цель
-
-Сделать отчёт Allure **пригодным для анализа**: метки (epic/feature/severity), окружение прогона, категории падений, steps/attachments через слой фреймворка — и собрать результаты из **полного CI** (Docker), не только из быстрого workflow `tests`.
+Allure подключён через `lab_fw.reporting`: метки (epic/feature/severity), steps/attachments, `categories.json`, динамический `environment.properties` в `tests/conftest.py`. Workflow **CI** собирает результаты полного Docker-прогона в artifact `allure-results`; workflow **tests** — более узкий набор без UI/compose.
 
 ### Что добавлено
 
@@ -657,7 +642,7 @@ noVNC при поднятом `selenium`: [http://localhost:7900](http://localho
 | `categories.json` | **статический** файл в репо — правила вкладки **Categories** в Allure |
 | `tests/conftest.py` | при `--alluredir`: копирует `categories.json` в results; пишет **динамический** `environment.properties` (pytest/allure версии, OS, Python, Local/Docker/GitHub Actions); только master pytest, не xdist worker |
 | `docker-compose.yml` | `--alluredir=/app/allure-results`, volume `./allure-results` на всех test-сервисах |
-| `.github/workflows/ci.yml` | `Prepare Allure results`, upload artifact; закомментирован `# cp environment.properties` — **учебный пример** статического env (в проекте env генерируется в conftest) |
+| `.github/workflows/ci.yml` | `Prepare Allure results`, upload artifact; закомментирован `# cp environment.properties` — пример статического env (в репозитории env генерируется в conftest) |
 | `Dockerfile` | `COPY categories.json` в образ (нужно для conftest внутри контейнера) |
 
 ### Где скачать отчёт на GitHub
@@ -686,15 +671,13 @@ allure serve allure-results
 - **Environment** — поля из `environment.properties`.
 - **Steps / Attachments** — шаги `ApiClient` и `lab_fw.reporting.step`.
 
-### Связь с N2
+### TestRail и Jira
 
-Feature/epic в Allure — задел под **TestRail** и Jira; подробности — [Lab N2](#lab-n2--jira--testrail-trial).
+Метки feature/epic дополняются ссылками testcase/issue — см. [N2](#n2--jira--testrail).
 
-**Главная идея N1:** отчёт строится через **слой фреймворка**; метаданные (env, categories) автоматизируются; CI отдаёт **полный** snapshot прогона в artifact.
+## N2 — Jira и TestRail
 
-## Lab N2 — Jira + TestRail (trial)
-
-После [Lab N1](#lab-n1--allure-analytics-hygiene) отчёт Allure уже группирует тесты (`feature`, `severity`, env). Lab N2 показывает, как **тот же прогон pytest** связать с **каталогом кейсов** (TestRail) и **задачами** (Jira), чтобы из отчёта и из TMS можно было перейти к «официальному» описанию проверки.
+Один прогон pytest можно связать с каталогом кейсов (TestRail) и задачами (Jira): ссылки в Allure (`@testcase`, `@issue`), поле References в TestRail, опциональная загрузка результатов через trcli. Группировка по `feature` и `severity` описана в [N1](#n1--отчёты-allure).
 
 ### Зачем четыре системы
 
@@ -724,7 +707,7 @@ Feature/epic в Allure — задел под **TestRail** и Jira; подроб�
 
 ### Код: декораторы в `lab_fw.reporting`
 
-В [Lab N1](#lab-n1--allure-analytics-hygiene) метки шли через `@feature` / `@severity`. В N2 добавлены:
+Помимо `@feature` / `@severity` (N1) в слое reporting доступны:
 
 | Декоратор | Allure | Типичный URL |
 |-----------|--------|----------------|
@@ -829,7 +812,7 @@ pytest -q --alluredir=allure-results
 allure serve allure-results
 ```
 
-Подробнее — [Lab N1](#lab-n1--allure-analytics-hygiene), [Lab N2](#lab-n2--jira--testrail-trial) и [Reporting](src/lab_fw/reporting/README.md).
+Подробнее — [N1](#n1--отчёты-allure), [N2](#n2--jira--testrail) и [Reporting](src/lab_fw/reporting/README.md).
 
 В Actions artifact `allure-results` загружается с `if: always()` (workflow **tests** и **CI**).
 
@@ -842,6 +825,6 @@ allure serve allure-results
 - [Pytest notes](tests/README_PYTEST.md)
 - [Mocks lab](tests/mocks_lab/README.md)
 
-## План обучения
+## Дополнительно
 
-См. [PLAN_MID_HP.md](PLAN_MID_HP.md).
+Тематический план развития навыков: [PLAN_MID_HP.md](PLAN_MID_HP.md).

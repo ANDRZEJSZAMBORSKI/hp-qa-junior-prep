@@ -2,7 +2,7 @@
 
 [RU](README.md) · [EN](README.en.md) · **PL**
 
-Repo szkoleniowe Junior QA Automation (Python): framework pytest `lab_fw`, API (httpx), UI (Playwright / Selenium), mocki, Allure, Docker, Docker Compose, GitHub Actions.
+Repozytorium automatyzacji QA w Pythonie: framework pytest `lab_fw`, API (httpx), UI (Playwright / Selenium), mocki, Allure, Docker, Docker Compose, GitHub Actions.
 
 ## Szybki start (lokalnie)
 
@@ -126,7 +126,7 @@ Usługi domyślne (bez profile): `mock-api` (`:1080`) + `tests` (`${DOCKER_TARGE
 | **CI** / lokalny compose | tak | uruchamiane |
 | workflow **tests** | nie | wykluczone (`not compose`) |
 
-## Schemat interakcji API (lab I1)
+## Schemat interakcji API (I1)
 
 Projekt ma dwa tryby testów API: izolowany `httpx.MockTransport` oraz integracyjny z osobnym MockServer przez Docker Compose. Prawdziwe cloud/API w tych przebiegach **nie** jest wołane — mock imituje kontrakt HTTP (status, JSON, nagłówki).
 
@@ -167,7 +167,7 @@ Workflow **CI** uruchamia Compose z `DOCKER_TARGET=ci`, żeby testy integracyjne
 
 Oba podejścia ograniczają zależność od dostępności prawdziwego zewnętrznego API.
 
-### Strategia mocków (lab I2)
+### Strategia mocków (I2)
 
 | | `httpx.MockTransport` | MockServer |
 |--|------------------------|------------|
@@ -191,7 +191,7 @@ Marker `compose` sam nie uruchamia infrastruktury — patrz komenda:
 
 `LAB_FW_BASE_URL` nie ustawiamy globalnie w Compose: testy compose podają `base_url="http://mock-api:1080"` wprost w `Settings`.
 
-### Negatywne scenariusze integracyjne (lab I3)
+### Negatywne scenariusze integracyjne (I3)
 
 W `tests/test_compose_api.py` (marker `compose`, ten sam `reset_mockserver`):
 
@@ -202,7 +202,7 @@ W `tests/test_compose_api.py` (marker `compose`, ten sam `reset_mockserver`):
 
 Polityka klienta: przy 4xx/5xx `get`/`post` **zwracają** `Response` (opcjonalnie `ensure_success` → `HttpStatusError`). Błędy transportu (timeout itd.) zawsze jako `ApiError`.
 
-### Diagnostyka padających testów (lab I4)
+### Diagnostyka padających testów (I4)
 
 | Objaw | Gdzie szukać | Co sprawdzić |
 |---|---|---|
@@ -232,9 +232,9 @@ Polityka klienta: przy 4xx/5xx `get`/`post` **zwracają** `Response` (opcjonalni
 
 **Szybki schemat:** test nie przeszedł → przeczytaj traceback → ustal, czy to odpowiedź HTTP, czy błąd transportowy → w Compose sprawdź `tests`, a następnie `mock-api` → w CI otwórz nieudany krok i pobierz dostępny artefakt.
 
-## Systemy rozproszone: teoria i terminy (lab L1)
+## Systemy rozproszone: teoria i terminy (L1)
 
-Słowniczek na poziomie mid. Gdzie pasuje — powiązanie z `lab_fw` (retry, timeout, `ApiError`, Compose/CI).
+Terminy i powiązanie z `lab_fw` (retry, timeout, `ApiError`, Compose/CI).
 
 ### 1. Async communication
 
@@ -298,9 +298,9 @@ Identyfikatory łączące zapisy jednego żądania lub procesu biznesowego. Requ
 
 Sukces lokalnie nie dowodzi sukcesu w CI. Kontroluj: wersje Pythona/zależności, sekrety/env, zawartość obrazu, mocki/serwisy zewnętrzne, komendę pytest w workflow. W tym repo Compose spina usługi; CI sprawdza powtarzalność.
 
-## Lab L2: kolejka, retry, timeout, deadline, idempotency
+## L2 — kolejka, retry, timeout, deadline, idempotency
 
-Ćwiczenie do [L1](#systemy-rozproszone-teoria-i-terminy-lab-l1): kolejka in-memory → worker → HTTP przez `ApiClient` z `lab_fw`, z polityką retry i limitami czasu.
+Implementacja i testy do [L1](#systemy-rozproszone-teoria-i-terminy-l1): kolejka in-memory → worker → HTTP przez `ApiClient` z `lab_fw`, z polityką retry i limitami czasu.
 
 **Kod:** `src/distributed_lab/queue_worker.py`  
 **Testy:** `tests/distributed_lab/` (marker `@pytest.mark.distributed_lab`)
@@ -348,7 +348,7 @@ W `tests/distributed_lab/test_timeout.py` — `WorkerTestHandler`: powtórny POS
 ### Uruchomienie
 
 ```bash
-# wszystkie testy lab L2
+# distributed_lab (L2)
 pytest -m distributed_lab -q
 
 # tylko kolejka/worker (bez wolnego serwera HTTP)
@@ -366,13 +366,13 @@ Docker / MockServer do L2 **nie są potrzebne** — wystarczy venv i `pip instal
 2. Liczniki prób w MockTransport lub `server.request_counts` / `received_requests` w testach slow-server.
 3. Metoda job: POST nie powinien dawać trzech prób przy domyślnej polityce retry.
 
-## Lab L3: checklista badania awarii
+## L3 — badanie awarii (checklista)
 
 Systematyczna diagnostyka w pięciu obszarach: **Env → Build → Logs → Metrics → Trace**. Praktyka: zachowanie **retry**, logi przez `caplog` oraz ręczne **liczniki badania** (*investigation counters*).
 
 **Testy:** `tests/distributed_lab/test_l3_investigation.py` (marker `@pytest.mark.distributed_lab`)
 
-**Powiązane laby:** [I4 — gdzie szukać przy padnięciu pytest](#diagnostyka-padających-testów-lab-i4) (mapa miejsc); [L2](#lab-l2-kolejka-retry-timeout-deadline-idempotency) (kolejka, worker, retry, deadline); L3 to **trasa badania** plus praktyka retry/logów.
+**Zob. też:** [I4 — diagnostyka padających testów](#diagnostyka-padających-testów-i4); [L2](#l2--kolejka-retry-timeout-deadline-idempotency) (kolejka, worker, retry, deadline). L3 — kolejność Env → Build → Logs oraz scenariusze retry z `caplog`.
 
 ### 1. Env — zmienne środowiskowe
 
@@ -419,16 +419,15 @@ To nie są metryki produkcyjne (brak error rate / p95 w runtime). Szukanie w kod
 
 Szukanie ID: `grep -RniE "X-Request-ID|Correlation-ID|request_id" src tests`. Testy L2 sprawdzają `X-Request-ID: req-123`. To **identyfikator na wire**, nie pełny tracing rozproszony (brak auto Trace ID / spanów między serwisami).
 
-### I4 vs L3 vs L2 (kotwica ustna)
+### Jak łączą się I4, L3 i L2
 
 | Etap | Pytanie |
 |------|---------|
 | **I4** | Gdzie szukać? (pytest, Compose, mock-api, CI) |
 | **L3** | W jakiej kolejności? (Env → Build → Logs → Metrics → Trace) |
-| **L2** | Kolejka, worker, deadline, idempotency (osobny lab) |
-| **Retry-lab w L3** | Praktyka: retry + `caplog` + liczniki badania |
+| **L2** | Kolejka, worker, deadline, idempotency |
+| **L3 (retry)** | retry + `caplog` + liczniki badania |
 
-*I4 — mapa miejsc; L3 — trasa badania; testy L2/L3 — retry i logi w praktyce.*
 
 ### Uruchomienie
 
@@ -440,11 +439,9 @@ pytest tests/distributed_lab/test_l3_investigation.py -v
 
 `MockTransport` — bez prawdziwej sieci i bez Docker/MockServer. Automatyczne metryki i platforma tracing end-to-end nie wchodzą w zakres L3.
 
-## Lab M1 — Równoległe uruchamianie i izolacja zasobów
+## M1 — równoległe uruchamianie i izolacja zasobów
 
-### Cel
-
-Zrozumieć wpływ równoległego uruchamiania pytest przez `pytest-xdist` na współdzielone zasoby i nauczyć się zapobiegać konfliktom między testami.
+`pytest-xdist` w tym repozytorium: współdzielone zasoby (MockServer, pliki, przeglądarka), `xdist_group`, `loadgroup` i artefakty per worker.
 
 ### Strategie izolacji
 
@@ -522,7 +519,7 @@ Przy uruchomieniu przez Compose serwis `mock-api` musi być dostępny z kontener
 Testy zwykłe i Compose są rozdzielone:
 
 - `.github/workflows/tests.yml` — `-n auto`, bez markerów `ui`, `selenium`, `compose`.
-- `.github/workflows/ci.yml` — najpierw serwis `tests`, potem profile `selenium` i `playwright` (patrz Lab M2).
+- `.github/workflows/ci.yml` — najpierw serwis `tests`, potem profile `selenium` i `playwright` (patrz [M2](#m2--zdalna-przeglądarka-selenium-grid-i-ui-w-dockerze)).
 - `Dockerfile` — `-n auto --dist loadgroup` dla pytest w kontenerze.
 
 CI oddziela główny suite od testów wymagających współdzielonego MockServer.
@@ -548,21 +545,11 @@ pytest tests/parallel_lab -m parallel_lab -n 2 -v
 
 Pliki `shared_report*.txt` w katalogu laby to lokalne artefakty; nie commituj ich (patrz `.gitignore`). Pełny suite w Dockerze (`Dockerfile` CMD) obejmuje `parallel_lab` razem z testami bez `ui` / `selenium`.
 
-### Powiązane laby
+Równoległy przebieg przyspiesza niezależne testy; współdzielone zasoby wymagają grupowania (`loadgroup`), osobnych plików lub `FileLock` oraz poprawnego teardown. Zob. [I4](#diagnostyka-padających-testów-i4), [L2](#l2--kolejka-retry-timeout-deadline-idempotency), [L3](#l3--badanie-awarii-checklista).
 
-- **C6** — izolacja testów i współdzielone zasoby.
-- **G3** — równoległość w CI: `pytest-xdist`, Docker, ustawienia uruchomienia.
-- **I4** — gdzie szukać konfiguracji i wyników: pytest, Compose, MockServer, CI.
-- **L2** — kolejka, worker, timeout, retry, idempotency.
-- **L3** — badanie awarii po logach i innych sygnałach.
+## M2 — zdalna przeglądarka (Selenium Grid) i UI w Dockerze
 
-**Idea M1:** równoległość przyspiesza niezależne testy, ale współdzielone zasoby wymagają jawnej strategii izolacji. Grupowanie, osobne zasoby na worker i cleanup rozwiązują różne problemy i się nie zastępują.
-
-## Lab M2 — Zdalna przeglądarka (Selenium Grid) i UI w Dockerze
-
-### Cel
-
-Przenieść przeglądarkę do osobnego kontenera (Grid), równoleglić niezależne testy UI/Selenium i wyraźnie oddzielić scenariusze ze **wspólnym stanem** (fixture module-scoped) markerem `serial`.
+Przeglądarka w kontenerze Grid; równoległe testy UI/Selenium używają wielu sesji. Scenariusze ze wspólnym stanem (module-scoped) mają `@pytest.mark.serial` i uruchamiają się bez `-n`.
 
 ### Zmiany w kodzie
 
@@ -618,20 +605,18 @@ Brak kroku `playwright down` — na ephemeral runnerze zwykle wystarczy; opcjona
 | Jeden lokalny driver | loadgroup / sekwencyjnie | sesje Grid + `serial` dla module fixtures |
 | Playwright w CI bez instalacji na runnerze | — | target `playwright` w Dockerze |
 
-### Checklist review
+### Weryfikacja lokalna
 
 - Mocki: `pytest tests/test_selenium_client.py -k "not connects_to_real" -q`
 - Żywy Grid (serwis na `:4444`): `test_selenium_client_connects_to_real_grid` bez env ustawia `http://localhost:4444`; `test_selenium_client_connects_to_real_grid_2` wymaga `SELENIUM_REMOTE_URL` (fixtura `selenium_client`). W Compose/CI: `http://selenium:4444`.
 - Playwright w Dockerze: pakiet `playwright` 1.63.x zgodny z obrazem `v1.63.0-noble`; równoległy UI — `-p no:anyio` (sync Playwright + xdist).
 - Pary `*fixture_module` — tylko w przebiegu `serial`, nie pod `-n 2`.
 
-**Idea M2:** runner i przeglądarka są rozdzielone; równoległość UI opiera się na wielu sesjach Grid lub workerach Playwright, a nie na jednym nieoznaczonym współdzielonym driverze.
+Runner pytest i przeglądarka są rozdzielone: równoległość UI — wiele sesji Grid lub workerów Playwright, nie jeden współdzielony driver bez `@serial`.
 
-## Lab N1 — Allure analytics hygiene
+## N1 — raporty Allure
 
-### Cel
-
-Raport Allure **nadaje się do analizy**: etykiety (epic/feature/severity), środowisko uruchomienia, kategorie porażek, steps/attachments przez warstwę frameworka — oraz zbiór wyników z **pełnego CI** (Docker), nie tylko z workflow `tests`.
+Allure przez `lab_fw.reporting`: etykiety (epic/feature/severity), steps/attachments, `categories.json`, dynamiczny `environment.properties` w `tests/conftest.py`. Workflow **CI** publikuje pełny przebieg Docker w `allure-results`; **tests** — węższy zestaw bez UI/compose.
 
 ### Co dodano
 
@@ -672,15 +657,13 @@ Przy `--alluredir` conftest umieszcza `categories.json` i `environment.propertie
 - **Environment** — `environment.properties`.
 - **Steps / Attachments** — `ApiClient` i `lab_fw.reporting.step`.
 
-### Powiązanie z N2
+### TestRail i Jira
 
-Feature/epic w Allure — pod **TestRail** i Jira; szczegóły — [Lab N2](#lab-n2--jira--testrail-trial).
+Etykiety feature/epic uzupełniają linki testcase/issue — zob. [N2](#n2--jira--testrail).
 
-**Idea N1:** raport przez **warstwę frameworka**; metadane zautomatyzowane; CI publikuje **pełny** przebieg w artefakcie.
+## N2 — Jira i TestRail
 
-## Lab N2 — Jira + TestRail (trial)
-
-Po [Lab N1](#lab-n1--allure-analytics-hygiene) Allure grupuje już testy (`feature`, `severity`, środowisko). Lab N2 pokazuje, jak **ten sam przebieg pytest** powiązać z **katalogiem case’ów** (TestRail) i **zadaniami** (Jira).
+Powiązanie przebiegu pytest z case’ami TestRail i zadaniami Jira: linki w Allure (`@testcase`, `@issue`), pole References w TestRail, opcjonalny upload przez trcli. Grupowanie po `feature` i `severity` — [N1](#n1--raporty-allure).
 
 ### Po co cztery systemy
 
@@ -815,7 +798,7 @@ pytest -q --alluredir=allure-results
 allure serve allure-results
 ```
 
-Szczegóły: [Lab N1](#lab-n1--allure-analytics-hygiene), [Lab N2](#lab-n2--jira--testrail-trial) i [Reporting](src/lab_fw/reporting/README.pl.md).
+Szczegóły: [N1](#n1--raporty-allure), [N2](#n2--jira--testrail) i [Reporting](src/lab_fw/reporting/README.pl.md).
 
 Upload artefaktu: `if: always()` (workflow **tests** i **CI**).
 
@@ -828,6 +811,6 @@ Upload artefaktu: `if: always()` (workflow **tests** i **CI**).
 - [Pytest notes](tests/README_PYTEST.pl.md)
 - [Mocks lab](tests/mocks_lab/README.pl.md)
 
-## Plan nauki
+## Dodatkowo
 
-Zob. [PLAN_MID_HP.md](PLAN_MID_HP.md).
+Plan rozwoju umiejętności: [PLAN_MID_HP.md](PLAN_MID_HP.md).
