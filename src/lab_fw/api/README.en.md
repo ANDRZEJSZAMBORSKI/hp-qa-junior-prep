@@ -2,129 +2,75 @@
 
 [RU](README.md) · **EN** · [PL](README.pl.md)
 
-HTTP client `ApiClient` and a training auth layer.
+<!-- mod-preamble -->
+
+### About the API module
+
+The `lab_fw.api` package is an HTTP client with explicit error handling, optional Bearer auth, pydantic schemas, and **opt-in** retry. This guide ties to root README **I1–I3** and [mocks_lab](../../../tests/mocks_lab/README.en.md).
+
+**Files:** `client.py`, `auth.py`, `schemas.py`, `retry_policy.py`.
 
 ## Install
 
-```bash
-pip install -e ".[dev]"
-```
+<!-- mod-deep:api:install -->
+#### About this section — install
+
+Editable install pulls in `httpx` and `pydantic` (dev). Without `[dev]`, part of the test suite is unavailable.
 
 ## Settings / token
 
-| Env | Purpose |
-|-----|---------|
-| `LAB_FW_BASE_URL` | base URL (default `https://example.com`) |
-| `LAB_FW_TIMEOUT_S` | timeout in seconds |
-| `LAB_FW_LOG_LEVEL` | log level |
-| `LAB_FW_API_TOKEN` | optional Bearer (if set → sent as `Authorization`) |
+<!-- mod-deep:api:settings -->
+#### About this section — Settings
 
-With no `LAB_FW_API_TOKEN`, the header is not set.
+`get_settings()` reads env once per process; see root README “Environment variables”. Token is optional — many tests use MockTransport without Bearer.
 
 ## Bearer
 
-On client create, if settings have `api_token`:
+<!-- mod-deep:api:bearer -->
+#### About this section — Bearer
 
-```text
-Authorization: Bearer <token>
-```
-
-After OAuth you can refresh:
-
-```python
-client.set_bearer_token("tok-123")
-```
+The header is set when the client is created if `api_token` is present. Refresh after OAuth via `set_bearer_token`.
 
 ## Client credentials (mock flow)
 
-```python
-from lab_fw.api.auth import fetch_client_credentials_token
+<!-- mod-deep:api:oauth -->
+#### About this section — client credentials
 
-token = fetch_client_credentials_token(client, "client-id", "client-secret")
-# POST /oauth/token (form) → access_token → set_bearer_token
-```
+Demo OAuth without an IdP: `fetch_client_credentials_token` → POST `/oauth/token` through the same `ApiClient` (mocked transport).
 
-HTTP ≥400 / invalid JSON / missing `access_token` → `ApiError`.
-
-In unit tests the endpoint is mocked with `httpx.MockTransport` — no real IdP.
+**Check:** `pytest tests/test_api_auth.py -q`
 
 ## Schema (pydantic)
 
-API responses are validated via models in `lab_fw.api.schemas` (not ad-hoc field asserts in every test).
+<!-- mod-deep:api:schema -->
+#### About this section — Schema
 
-| Model | Fields | Policy |
-|-------|--------|--------|
-| `User` | `id: int`, `name: str` | `strict=True`, `extra="forbid"` |
-| `TokenResponse` | `access_token`, `token_type`, `expires_in` | same |
+`parse_user` / `parse_token` centralize JSON validation → `SchemaError` instead of KeyError in every test.
 
-```python
-from lab_fw.api.schemas import parse_user, parse_token
-
-user = parse_user(response.json())
-token = parse_token(response.json())
-```
-
-Validation failure → `SchemaError` (subclass of `ApiError`).  
-`pydantic>=2` is in optional `dev`.
+**Check:** `pytest tests/test_api_schemas.py -q`
 
 ## Negative / errors
 
-`ApiClient.get/post` do **not** raise on 4xx/5xx by themselves — they return `httpx.Response`.  
-Check status explicitly:
+<!-- mod-deep:api:negative -->
+#### About this section — Negative / errors
 
-```python
-from lab_fw.api.client import ensure_success
+4xx/5xx are **not** exceptions by default — explicit contract. Transport failures → `ApiError` with `__cause__`.
 
-response = client.get("/users/999")
-ensure_success(response)  # status < 400 → same response; else HttpStatusError
-```
-
-| Type | When |
-|------|------|
-| `HttpStatusError` (`ApiError`) | `ensure_success` when status ≥ 400 (Allure attach: status/body) |
-| `ApiError` | transport: `ConnectError`, `ReadTimeout`, … |
-| `SchemaError` (`ApiError`) | 200 OK, but JSON fails the schema |
-
-Hierarchy:
-
-```text
-ApiError
- ├── SchemaError
- └── HttpStatusError
-```
+**Check:** `pytest tests/test_api_negative.py tests/test_compose_api.py -q`
 
 ## Retry policy
 
-Retry is **not** built into every `get/post`. Call it explicitly:
+<!-- mod-deep:api:retry -->
+#### About this section — Retry policy
 
-```python
-from lab_fw.core.retry import retry_call
-from lab_fw.api.client import ensure_success
+Retry only through `retry_call`, not inside every `get`. The table below is the source of truth for L1 item 3 and the L2 worker.
 
-def once():
-    return ensure_success(client.get("/users"))
-
-retry_call(once, delay_s=0, retry_on=(ApiError,), retry_if=True)
-```
-
-`retry_if=True` → decision via `lab_fw.api.retry_policy.should_retry`.
-
-| Situation | Retry? |
-|-----------|--------|
-| GET + HTTP **429** / **503** (`HttpStatusError`) | yes |
-| GET + transport (`ConnectError` / `ReadTimeout` → `ApiError`) | yes |
-| GET + **400 / 401 / 403 / 404 / 422 / 500** | no |
-| POST / non-GET | no |
-| non-`ApiError` | no (re-raised when `retry_if=True`) |
-
-`HttpStatusError` keeps `response` so the policy can see method/status.
+**Check:** `pytest tests/test_api_retry_policy.py -q`
 
 ## Tests
 
-```bash
-pytest -q tests/test_api_auth.py
-pytest -q tests/test_api_schemas.py
-pytest -q tests/test_api_negative.py
-pytest -q tests/test_api_retry_policy.py
-pytest -q -m api
-```
+<!-- mod-deep:api:tests -->
+#### About this section — API tests
+
+Run by file when isolating regressions; `-m api` runs the full marked set.
+

@@ -2,11 +2,11 @@
 
 [RU](README.md) · **EN** · [PL](README.pl.md)
 
-UI layer: **Playwright = primary**, **Selenium = second stack** (D2). Do not mix stacks in one page class.
+UI automation layer: **Playwright** is the primary stack; **Selenium** is a second stack for Grid/Docker patterns. Do not mix stacks in one page class.
 
-Prep phases: **D1** Playwright · **D2** Selenium · **D3** POM (pages + components) · part of **D4** (explicit waits in helpers).
+This guide covers install, settings, Page Object Model, explicit waits, and links to **M2** (Grid/Docker) and the `serial` marker in the root README.
 
-## Why
+## Purpose
 
 Tests should not call raw browser APIs in every file: a client owns browser/driver lifecycle; page objects own locators and actions; components own reusable waits/flash. Base URL and UI timeout come from settings/env.
 
@@ -90,7 +90,7 @@ pytest -m ui -vv --tb=line
 
 ---
 
-## Selenium (D2) — `SeleniumClient`
+## Selenium — `SeleniumClient`
 
 Separate lifecycle and pages: `lab_fw.ui.selenium_client`, `lab_fw.ui.selenium_pages`.
 

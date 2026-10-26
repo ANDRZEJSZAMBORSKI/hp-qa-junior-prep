@@ -2,11 +2,11 @@
 
 **RU** · [EN](README.en.md) · [PL](README.pl.md)
 
-UI-слой фреймворка: **Playwright = primary**, **Selenium = second stack** (D2). Стек не смешиваем в одном page-классе.
+UI-слой фреймворка автоматизации: **Playwright** — основной стек, **Selenium** — второй стек для сравнения паттернов и Grid. В одном page-классе стеки **не смешиваются**.
 
-Фазы prep: **D1** Playwright · **D2** Selenium · **D3** POM (pages + components) · часть **D4** (explicit waits в helpers).
+Документ описывает установку, настройки, Page Object Model (pages + components), explicit waits и связь с разделами **M2** (Grid/Docker) и **serial**-маркером в корневом README.
 
-## Зачем
+## Назначение слоя
 
 Тесты не дергают сырой браузерный API в каждом файле: клиент поднимает browser/driver, page objects инкапсулируют локаторы и действия, components — переиспользуемые waits/flash. Base URL и UI timeout — из settings/env.
 
@@ -40,7 +40,7 @@ Demo: [the-internet.herokuapp.com](https://the-internet.herokuapp.com/) (login /
 
 ---
 
-## Структура (D3 POM)
+## Структура (POM)
 
 ```text
 lab_fw/ui/

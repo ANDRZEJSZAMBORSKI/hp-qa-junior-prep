@@ -10,98 +10,43 @@ Pokazuje podmianę zależności na dwóch poziomach: mocki obiektu/metody w Pyth
 
 ## Jak uruchamiać
 
-Z katalogu głównego `hp-qa-junior-prep` (aktywne venv):
+<!-- mod-deep:mocks_lab:run -->
+#### O sekcji — uruchomienie
 
-```bash
-# cały moduł mocks_lab
-pytest -v tests/mocks_lab
-
-# tylko czyste mocki
-pytest -v -m mocks_pure tests/mocks_lab
-
-# tylko MockTransport
-pytest -v -m mocks_httpx tests/mocks_lab
-
-# wszystko oznaczone mocks
-pytest -v -m mocks tests/mocks_lab
-
-# smoke w module (stub / spy / monkeypatch)
-pytest -v -m smoke tests/mocks_lab
-```
-
-Oczekuj: logi `INFO [lab_fw.api] …`; przy retry — `WARNING [lab_fw.core.retry] …`; na końcu wszystkie testy **passed**.  
-Pełny przebieg repo: `pytest -q` (w tym `tests/mocks_lab` i pozostały suite).
-
----
+Filtry `mocks_pure` / `mocks_httpx` dzielą część I i II bez ręcznego wypisywania plików.
 
 ## Struktura
 
-| Plik | Zawartość |
-|------|-----------|
-| `test_unittest_mock_basics.py` | `Mock`: `return_value`, `side_effect`, `call_count`, `call_args_list` |
-| `test_mock_patch_api_client.py` | `patch.object` / `patch(httpx.Client)` / `MagicMock` / `ConnectError` → `ApiError` |
-| `test_mock_side_effect_and_calls.py` | `side_effect` + własny `@retry` i `retry_call` |
-| `test_mock_vs_spy.py` | stub vs `Mock(wraps=…)` vs `monkeypatch.setattr` |
-| `test_mock_transport_basics.py` | `MockTransport`: `Settings` budowane **ręcznie** w teście |
-| `test_mock_transport_basics_02.py` | te same idee, ale `settings` z **fixture** (`conftest`) |
+<!-- mod-deep:mocks_lab:structure -->
+#### O sekcji — struktura
 
-Dwa pliki transport i częściowo podobne przypadki są **celowe**: porównanie stylów (ręczny `Settings` vs fixture; jeden duży test vs `@parametrize`).
-
-Markery (`mocks`, `mocks_pure`, `mocks_httpx`, `smoke`) są tam, gdzie pomagają filtrować — to nie jednolita „produktowa” polityka.
-
----
+Dwa pliki transportowe celowo powtarzają te same idee — porównaj fixture vs ręczne Settings.
 
 ## Część I — czyste mocki
 
-Podmieniamy **obiekt lub metodę** w Pythonie:
+<!-- mod-deep:mocks_lab:pure -->
+#### O sekcji — czyste mocki
 
-- `Mock` / `MagicMock` — bez prawdziwego HTTP;
-- `patch` / `patch.object` — tymczasowa podmiana `request` lub `httpx.Client`;
-- `wraps=` — spy: prawdziwa funkcja + historia wywołań;
-- `monkeypatch` — sposób pytest na podmianę atrybutu klasy/modułu na czas testu.
-
-Zalety: szybko, precyzyjnie, dobre do unitów.  
-Wady: łatwo trafić w zły szew (zły patch); słaba widoczność prawdziwego `httpx.Request` (path/params/headers/body).
-
----
+Patch „w złym miejscu” to częsty błąd juniora. Pytaj: podmieniamy **klienta**, **metodę** czy **transport**?
 
 ## Część II — `httpx.MockTransport`
 
-Podmieniamy **transport** prawdziwego `httpx.Client` wewnątrz `ApiClient`:
+<!-- mod-deep:mocks_lab:transport -->
+#### O sekcji — MockTransport
 
-```text
-ApiClient → httpx.Client(transport=MockTransport(handler)) → handler(request) → Response | raise
-```
-
-Handler widzi prawdziwy `httpx.Request` (method, path, params, headers) i może:
-
-- zwrócić JSON / text / wybrany status;
-- rzucić `ConnectError` / `ReadTimeout` → nasz klient podnosi `ApiError` (`__cause__` zachowane);
-- trzymać stan (retry: 2 błędy → sukces).
-
-Zalety: bliżej prawdziwego stosu HTTP bez sieci; DI przez `transport=` jest czystsze niż wieczny `patch`.  
-Wady: trochę więcej kodu w handlerze; to nadal nie live API.
-
----
+Preferowany styl dla `ApiClient(settings, transport=...)`. Handler widzi prawdziwy `httpx.Request`.
 
 ## Kiedy co wybrać (ściąga)
 
-| Zadanie | Zwykle |
-|---------|--------|
-| Sprawdzić własny retry / gałąź bez HTTP | `Mock` + `side_effect` |
-| Podmienić jedną metodę już utworzonego klienta | `patch.object` |
-| Nie tworzyć prawdziwego `httpx.Client` | `patch("…httpx.Client")` |
-| Upewnić się, że poszedł właściwy path/params/header | `MockTransport` + assert na `request` |
-| Błąd sieci / timeout przez klienta | `MockTransport` raise **lub** `patch` + `side_effect` |
-| Integracja `ApiClient` + `retry_call` | `MockTransport` z licznikiem attempts |
+<!-- mod-deep:mocks_lab:cheatsheet -->
+#### O sekcji — ściąga
 
-**MockTransport / DI transport** — preferowany styl klienta API w tym repozytorium; czyste mocki — do izolacji helperów i wąskich unit-testów.
-
----
+Używaj tabeli przy code review: transport dla kontraktu HTTP, mock dla wąskiej gałęzi logiki.
 
 ## Związek z `lab_fw`
 
-- `ApiClient(settings, transport=…)` — punkt rozszerzenia.
-- `ApiError` owija `httpx.HTTPError`.
-- `retry_call` / dekorator `@retry` — wokół wywołań klienta.
-- Logowanie jest już uruchamiane w rootowym `tests/conftest.py` (`pytest_configure` → `setup_logging`).
+<!-- mod-deep:mocks_lab:tiein -->
+#### O sekcji — powiązanie z lab_fw
+
+Logi retry są już w conftest — szukaj WARNING przy `pytest -v tests/mocks_lab`.
+

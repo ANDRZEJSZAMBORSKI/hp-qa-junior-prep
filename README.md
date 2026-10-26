@@ -2,9 +2,104 @@
 
 **RU** · [EN](README.en.md) · [PL](README.pl.md)
 
-Репозиторий автоматизации QA на Python: pytest-фреймворк `lab_fw`, API (httpx), UI (Playwright / Selenium), mocks, Allure, Docker, Docker Compose, GitHub Actions.
+<!-- readme-preamble -->
+
+Репозиторий **hp-qa-junior-prep** — это учебно-практический проект автоматизации QA на Python. Здесь собран воспроизводимый стек: пакет **`lab_fw`** (HTTP-клиент, UI, конфигурация, reporting, pytest-плагин), набор **pytest**-тестов, **Docker / Compose**, **GitHub Actions** и отчёты **Allure**. Внешний «боевой» API в типичных прогонах **не вызывается**: контракт имитируют **MockTransport** и **MockServer**, чтобы отрабатывать изоляцию, интеграцию и диагностику без зависимости от сети.
+
+Документ ниже одновременно **инструкция** (команды, env, CI) и **учебник** (теория, связь с кодом, типичные ошибки). Три языка: **RU** (этот файл), [EN](README.en.md), [PL](README.pl.md).
+
+### Для кого
+
+- Инженер QA / SDET, который поднимает фреймворк локально и в CI.
+- Разработчик, которому нужно понять, как устроены моки, параллельный pytest и traceability (TestRail / Jira).
+
+### Что вы получите после прохождения материала
+
+- Умение выбирать уровень теста: in-process mock vs контейнерный MockServer vs UI в Grid/Docker.
+- Понимание retry, timeout, deadline, idempotency на примере `ApiClient` и `Worker`.
+- Навык расследования падений: env → build → logs → metrics → trace.
+- Практику Allure + опциональную связь с TestRail и Jira.
+
+### Требования
+
+| Компонент | Версия / примечание |
+|-----------|---------------------|
+| Python | **≥ 3.11** (`pyproject.toml`) |
+| Git | для клонирования и воспроизведения commit в CI |
+| Docker Desktop (опционально) | Compose-тесты, Grid, Playwright в CI-образе |
+| Allure CLI (опционально) | `allure serve` локально |
+| TestRail CLI (опционально) | канал B в разделе N2 |
+
+### Карта разделов документа
+
+| Блок | Тема | Где в коде |
+|------|------|------------|
+| **I1–I4** | API, моки, негативы, диагностика | `tests/mocks_lab/`, `tests/test_compose_api.py`, `src/lab_fw/api/` |
+| **L1–L3** | Распределённые системы, очередь/worker, расследование | `src/distributed_lab/`, `tests/distributed_lab/` |
+| **M1–M2** | xdist, изоляция, Selenium Grid, UI в Docker | `tests/parallel_lab/`, `tests/conftest.py`, Compose profiles |
+| **N1–N2** | Allure, TestRail, Jira | `src/lab_fw/reporting/`, `tests/test_api_client.py`, `scripts/upload_testrail.sh` |
+
+Рекомендуемый порядок чтения: **Быстрый старт → Структура → I1–I4 → L1 → L2 → L3 → M1 → M2 → N1 → N2**. Разделы Docker и GitHub Actions удобно держать под рукой при любом прогоне.
+
+### Содержание
+
+1. [Быстрый старт](#быстрый-старт-локально)
+2. [Структура репозитория](#структура)
+3. [Переменные окружения](#переменные-окружения)
+4. [Маркеры pytest](#маркеры-pytest)
+5. [Docker](#docker)
+6. [GitHub Actions](#github-actions)
+7. [I1 — схема API](#схема-взаимодействия-api-i1) (включая I2–I4)
+8. [L1 — глоссарий](#распределённые-системы-теория-и-термины-l1)
+9. [L2 — очередь и worker](#l2--очередь-retry-timeout-deadline-idempotency)
+10. [L3 — расследование сбоев](#l3--расследование-сбоев-чек-лист)
+11. [M1 — параллельность](#m1--параллельное-выполнение-и-изоляция-ресурсов)
+12. [M2 — Grid и UI](#m2--удалённый-браузер-selenium-grid-и-ui-в-docker)
+13. [N1 — Allure](#n1--отчёты-allure)
+14. [N2 — TestRail и Jira](#n2--jira--testrail)
+15. [Allure (кратко)](#allure-кратко)
+16. [Документация модулей](#документация-модулей)
+
+### Как читать каждый раздел
+
+В начале главы — блок **«О разделе»**: зачем тема, что смотреть в репозитории, как проверить себя. Дальше — справочные таблицы, команды и связь с тестами. Если команда падает, сначала [I4](#диагностика-падения-тестов-i4), затем при сбоях инфраструктуры — [L3](#l3--расследование-сбоев-чек-лист).
 
 ## Быстрый старт (локально)
+
+<!-- readme-chapter:quickstart -->
+### О разделе
+
+Минимальный путь от пустой машины до «зелёного» прогона unit/API без браузера и без MockServer. Это тот же набор, что workflow **tests** на GitHub (без маркера `compose`).
+
+### Пошагово
+
+1. Клонируй репозиторий, перейди в корень.
+2. Создай venv на **Python 3.11+** и активируй его.
+3. `pip install -e ".[dev]"` — editable install пакета `lab-fw` и dev-зависимостей (pytest, xdist, allure, playwright, selenium, filelock).
+4. Запусти быстрый suite (см. команду ниже). Ожидание: сотни passed, 0 failed; время — минуты на ноутбуке.
+
+### Что означает фильтр маркеров
+
+`-m "not ui and not selenium and not compose"` исключает тесты, которым нужен реальный браузер или контейнер `mock-api`. Так локально не нужны Docker и `playwright install` для первого успеха.
+
+### UI (отдельный шаг)
+
+Playwright и Selenium требуют браузер. Playwright: `playwright install chromium`. Selenium 4 на Windows часто тянет Chrome через Selenium Manager автоматически.
+
+### Самопроверка
+
+| Вопрос | Где ответ |
+|--------|-----------|
+| Пакет установлен editable? | `python -m pip show lab-fw` → Location внутри твоего `.venv` |
+| xdist работает? | В выводе pytest есть `[gw0]` при `-n auto` |
+| Почему не бегут compose-тесты? | Нет MockServer — см. раздел Docker |
+
+### Типичные проблемы
+
+- **`python` не 3.11** — переустанови venv с нужной версией.
+- **Import errors** — активирован ли venv; выполнен ли `pip install -e ".[dev]"`.
+- **Playwright без браузера** — не запускай `-m ui` до `playwright install`.
+
 
 ```bash
 python -m venv .venv
@@ -25,6 +120,39 @@ pytest -m selenium -q
 
 ## Структура
 
+<!-- readme-chapter:structure -->
+### О разделе
+
+Карта репозитория: где лежит переиспользуемый код фреймворка, где сценарии pytest, как связаны Docker и CI.
+
+### Дерево (основное)
+
+| Путь | Содержимое |
+|------|------------|
+| `src/lab_fw/api/` | `ApiClient`, retry, auth, ошибки |
+| `src/lab_fw/ui/` | Playwright / Selenium clients, page objects |
+| `src/lab_fw/config/` | `Settings`, env, pydantic |
+| `src/lab_fw/reporting/` | Allure decorators, steps, attachments |
+| `src/lab_fw/pytest_plugin/` | hooks, markers integration |
+| `src/distributed_lab/` | `Job`, `Worker`, `InMemoryQueue` (L2) |
+| `tests/` | все pytest-модули |
+| `tests/mocks_lab/` | чистые моки и MockTransport (I2) |
+| `tests/distributed_lab/` | L2/L3 |
+| `tests/parallel_lab/` | M1, xdist и файлы |
+| `scripts/` | вспомогательные скрипты (TestRail upload) |
+| `categories.json` | правила Allure Categories |
+| `.github/workflows/` | **tests** и **CI** |
+
+### Два слоя
+
+- **`lab_fw`** — библиотека, которую импортируют тесты; её можно ставить editable и переиспользовать в других проектах.
+- **`tests/`** — демонстрация паттернов; падение теста часто указывает на регрессию фреймворка или контракта.
+
+### Самопроверка
+
+Открой `pyproject.toml`: `[tool.setuptools.packages.find] where = ["src"]`. Убедись, что после install `import lab_fw` работает из корня репо.
+
+
 | Путь | Назначение |
 |------|------------|
 | `src/lab_fw/` | фреймворк (api, ui, config, reporting, pytest plugin) |
@@ -35,6 +163,30 @@ pytest -m selenium -q
 | `.github/workflows/ci.yml` | Compose: API → Selenium Grid → Playwright в Docker |
 
 ## Переменные окружения
+
+<!-- readme-chapter:env -->
+### О разделе
+
+Конфигурация через переменные окружения и `Settings`. Большинство API-тестов с MockTransport **не требуют** реального токена.
+
+### Приоритет
+
+1. Явный аргумент / fixture в тесте.
+2. Env (`LAB_FW_*`).
+3. Значения по умолчанию в коде (`example.com`, timeout 5s).
+
+### Практика
+
+- Локально можно не задавать `LAB_FW_API_TOKEN` — многие тесты пройдут.
+- В CI workflow **tests** токен **обязателен** (Secret) — пример расхождения env.
+- Для Compose API используй `http://mock-api:1080` в `Settings`, а не глобальный `LAB_FW_BASE_URL`.
+
+### Самопроверка
+
+```bash
+python -c "from lab_fw.config import get_settings; s=get_settings(); print(s.base_url, s.timeout_s)"
+```
+
 
 | Env | Назначение |
 |-----|------------|
@@ -50,6 +202,30 @@ pytest -m selenium -q
 
 ## Маркеры pytest
 
+<!-- readme-chapter:markers -->
+### О разделе
+
+Маркеры — «рубильники» для выбора подмножества тестов и для CI. Они **не** поднимают инфраструктуру сами.
+
+### Как CI использует маркеры
+
+| Workflow | Фильтр | Эффект |
+|----------|--------|--------|
+| **tests** | `not ui`, `not selenium`, `not compose` | быстрый runner без Docker |
+| **CI** / Docker CMD | часто без `not compose` | compose-тесты при живом `mock-api` |
+| Compose services | см. M2 | `serial` vs параллельный UI |
+
+### Учебный смысл
+
+- `distributed_lab` — L2/L3, без Docker.
+- `parallel_lab` — M1, xdist и файлы.
+- `reporting` — декораторы Allure.
+
+### Самопроверка
+
+`pytest --markers | findstr /i compose` (Windows) или `pytest --markers | rg compose` — описание из `pyproject.toml`.
+
+
 | Маркер | Смысл |
 |--------|--------|
 | `smoke` / `api` / … | обычные быстрые тесты |
@@ -62,6 +238,35 @@ pytest -m selenium -q
 | `reporting` | тесты слоя Allure / `lab_fw.reporting` |
 
 ## Docker
+
+<!-- readme-chapter:docker -->
+### О разделе
+
+Docker воспроизводит CI локально: один образ `tests`, сервис MockServer, опционально Grid и Playwright.
+
+### Mental model
+
+1. **Образ `ci`** — pytest в Linux-контейнере.
+2. **Compose network** — `tests` резолвит `mock-api` по DNS.
+3. **Profiles** — UI не стартует по умолчанию (экономия ресурсов).
+
+### Когда нужен `DOCKER_TARGET=local`
+
+Корпоративный MITM (Avast и т.п.): target **local** кладёт CA в образ. Файл `avast-root.crt` только на твоей машине.
+
+### Самопроверка
+
+```bash
+docker compose up --build --abort-on-container-exit tests
+```
+
+Exit code 0 и лог pytest с passed compose-тестами.
+
+### Типичные ошибки
+
+- Запуск compose-тестов на голом `pytest` без `mock-api`.
+- Путаница CMD образа (включает compose) vs workflow **tests** (исключает).
+
 
 ### Образы (`Dockerfile`)
 
@@ -124,6 +329,33 @@ docker compose --profile playwright run --build --rm playwright-tests-serial
 
 ## GitHub Actions
 
+<!-- readme-chapter:gha -->
+### О разделе
+
+Два pipeline дополняют друг друга: быстрая обратная связь на runner и полный интеграционный прогон в Docker.
+
+### tests.yml
+
+- Установка зависимостей на ubuntu runner.
+- pytest с xdist, **без** ui/selenium/compose.
+- Artifact `allure-results` — частичный срез.
+
+### ci.yml
+
+- Полный Compose: API → down → Selenium (parallel + serial) → Playwright (parallel + serial).
+- Один aggregated `allure-results` после всех стадий.
+
+### Как учиться по Actions
+
+1. Открой упавший job → step log.
+2. Скачай artifact Allure.
+3. Сравни команду pytest с локальной из README.
+
+### Самопроверка
+
+Fork + push → зелёный **tests** на каждом PR; **CI** длиннее, но даёт полную картину.
+
+
 | Workflow | Что делает |
 |----------|------------|
 | **tests** | `pip install` + `pytest -m "not ui and not selenium and not compose"` + Allure artifact |
@@ -137,6 +369,36 @@ docker compose --profile playwright run --build --rm playwright-tests-serial
 | workflow **tests** (голый runner) | нет | исключены (`not compose`) |
 
 ## Схема взаимодействия API (I1)
+
+<!-- readme-chapter:i1 -->
+### О разделе (I1–I4)
+
+Блок **Integration / API**: как тестировать HTTP-клиент без продакшена и когда выносить мок в отдельный контейнер.
+
+| Подраздел | Тема |
+|-----------|------|
+| **I1** | Два режима: MockTransport vs MockServer |
+| **I2** | Стратегия моков, `tests/mocks_lab/` |
+| **I3** | 401, timeout, `ApiError` |
+| **I4** | Карта логов и CI |
+
+### Ключевые файлы
+
+- `src/lab_fw/api/client.py` — `ApiClient`, transport DI.
+- `tests/test_api_client.py` — MockTransport примеры + Allure (N2).
+- `tests/test_compose_api.py` — MockServer контракт.
+
+### Упражнение
+
+1. `pytest tests/mocks_lab -q` — in-process.
+2. `docker compose up … tests` — сеть между контейнерами.
+3. Сравни время и сложность отладки.
+
+### Контрольные вопросы
+
+- Почему `compose` не поднимает MockServer?
+- Чем HTTP 401 отличается от `ReadTimeout` в assertions?
+
 
 В проекте два режима тестирования API: изолированный с `httpx.MockTransport` и интеграционный с отдельным сервисом MockServer через Docker Compose. Реальный cloud/API в этих прогонах **не** вызывается — мок имитирует его HTTP-контракт (статус, JSON, заголовки).
 
@@ -179,6 +441,14 @@ Workflow **CI** поднимает Compose с `DOCKER_TARGET=ci`, чтобы и�
 
 ### Стратегия моков (I2)
 
+#### О подразделе I2
+
+Здесь сравниваются **два шва подмены** HTTP: внутри процесса (transport) и в отдельном контейнере (MockServer). Умение выбрать шов — базовый навык API-тестирования: unit-близко vs интеграция с сетью и DNS Compose.
+
+**Изучи в репозитории:** каталог [tests/mocks_lab/](tests/mocks_lab/README.md) (MockTransport и `unittest.mock`) и [tests/test_compose_api.py](tests/test_compose_api.py) (ожидания MockServer).
+
+**Самопроверка:** объясни, почему DI `transport=` предпочтительнее вечного `patch('httpx.Client')` для `ApiClient`.
+
 | | `httpx.MockTransport` | MockServer |
 |--|------------------------|------------|
 | Где работает | внутри процесса Python | отдельный сервис (`mock-api`) |
@@ -203,6 +473,12 @@ Compose-контракт в `test_mock_api_users`:
 
 ### Негативные интеграционные сценарии (I3)
 
+#### О подразделе I3
+
+Негативные тесты проверяют **контракт ошибок**: приложение и клиент должны предсказуемо обрабатывать 401 и transport timeout. Важно различать **HTTP-ответ** (статус, JSON) и **транспортный сбой** (`ApiError` с `__cause__`).
+
+**Практика:** прочитай реализацию `ApiClient.get` / `ensure_success` в `src/lab_fw/api/` и сопоставь с таблицей ниже.
+
 В `tests/test_compose_api.py` (маркер `compose`, тот же `reset_mockserver`):
 
 | Тест | MockServer | Что проверяем |
@@ -213,6 +489,12 @@ Compose-контракт в `test_mock_api_users`:
 Политика клиента: при 4xx/5xx `get`/`post` **возвращают** `Response` (опционально `ensure_success` → `HttpStatusError`). Транспортные сбои (timeout и т.п.) всегда через `ApiError`.
 
 ### Диагностика падения тестов (I4)
+
+#### О подразделе I4
+
+Это **справочник мест**: куда смотреть первым делом, когда pytest красный локально или в Actions. Используй его вместе с [L3](#l3--расследование-сбоев-чек-лист) (порядок env → logs → …).
+
+**Упражнение:** намеренно сломай expectation в compose-тесте и пройди таблицу сверху вниз, пока не найдёшь 202 vs не-202 на `/mockserver/verify`.
 
 | Ситуация | Где смотреть | Что проверить |
 |---|---|---|
@@ -244,73 +526,221 @@ Compose-контракт в `test_mock_api_users`:
 
 ## Распределённые системы: теория и термины (L1)
 
-Термины и связь с реализацией в `lab_fw` (retry, timeout, `ApiError`, Compose/CI).
+<!-- readme-chapter:l1 -->
+### О разделе
+
+**L1** — концептуальный фундамент для L2/L3: термины, которые встречаются в собеседованиях и в продакшен-логах.
+
+### Как учить
+
+1. Прочитай пункт 1–9 последовательно.
+2. После каждого найди отсылку в `lab_fw` (retry, timeout, `ApiError`).
+3. Перейди к L2 и посмотри, как абстракции стали кодом.
+
+### Связь с QA
+
+Колонка **QA** в таблицах — что проверять в тестах и в расследовании, а не только определения.
+
+### Самопроверка
+
+Объясни своими словами: retry ≠ timeout; idempotency ≠ «тот же JSON»; eventual consistency ≠ «sleep 5 секунд».
+
 
 ### 1. Async communication
 
-Отправитель не обязан ждать завершения всей обработки, прежде чем продолжить; результат может прийти позже. Асинхронность **не равна** очереди — очередь лишь один из механизмов.
+<!-- l1-deep:1 -->
+#### О пункте 1 — Async communication
 
-**QA:** задержки, отсутствие немедленного ответа, повторные события, ошибки фоновой обработки.
+**Смысл:** вызывающий код не блокируется на полной обработке; результат обрабатывается позже другим компонентом.
 
-**Пример:** API отвечает `202 Accepted` (заказ принят), заказ появляется позже — проверяем и `202`, и позднее состояние.
+**В репозитории:** очередь `InMemoryQueue` + `Worker.run_once()` — положили `Job`, HTTP выполнится при следующем `run_once`, а не в момент `put`.
+
+```python
+# src/distributed_lab/queue_worker.py (идея)
+queue.put(job)
+worker.run_once()  # один job → HTTP через ApiClient
+```
+
+**QA:** тестируй «принято к обработке» и «итоговое состояние» отдельно; не смешивай с «fire-and-forget без проверки».
+
+**Проверка:** `pytest tests/distributed_lab/test_queue_worker.py -q`
 
 ### 2. Queue / event / message broker
 
-| Термин | Смысл | QA |
-|--------|--------|-----|
-| **Queue** | сообщения ждут обработки | не теряются, корректная обработка, нет нежелательных эффектов при повторе |
-| **Event** | факт в системе (напр. `OrderCreated`) | возникает при нужных условиях, корректные данные |
-| **Message broker** | маршрутизация между сервисами (RabbitMQ, Kafka) | доставка, маршрутизация, ошибки, повторная доставка |
+<!-- l1-deep:2 -->
+#### О пункте 2 — Queue / event / broker
+
+**В репозитории:** упрощённая **Queue** — FIFO на `deque`, типизированный `Job` (`parse_job` → `SchemaError` при битой схеме).
+
+```python
+# src/distributed_lab/queue_worker.py
+class InMemoryQueue:
+    def put(self, job: Job) -> None: ...
+    def get(self) -> Job | None: ...
+```
+
+**Event** в проде — факт домена (`OrderCreated`); здесь аналог — dict job, который валидируется в модель.
+
+**QA:** после `put` job не теряется; повторная обработка смотри в пункте 5 (idempotency).
+
+**Проверка:** `pytest tests/distributed_lab/test_queue_worker.py -k queue -q`
 
 ### 3. Retry vs timeout
 
-- **Retry** — будем ли пытаться снова после временной ошибки (лимит попыток; не повторять бессмысленно, напр. типичный `404`).
-- **Timeout** — как долго готовы ждать (connect / read / overall deadline).
+<!-- l1-deep:3 -->
+#### О пункте 3 — Retry vs timeout
 
-Timeout может привести к retry, но это разные механизмы. После timeout клиент **не знает**, выполнил ли сервер операцию — слепой повтор опасен без идемпотентности.
+**Retry** решает «повторять ли после ошибки»; **timeout** — «сколько ждать одну попытку». После timeout исход на сервере **неизвестен** — повтор POST опасен без idempotency.
 
-В `lab_fw`: политика retry; после исчерпания попыток — ожидаемый `ApiError`.
+**Политика в коде** (`src/lab_fw/api/retry_policy.py`):
+
+```python
+def should_retry(exc: ApiError) -> bool:
+    # GET + 429/503 или GET + transport error → True
+    # POST → False
+```
+
+**Оркестрация:** `lab_fw.core.retry.retry_call` вызывает `should_retry` между попытками.
+
+**Проверка:** `pytest tests/test_api_retry_policy.py tests/distributed_lab/test_l3_investigation.py -q`
 
 ### 4. Timeout
 
-Максимальное время ожидания соединения, данных или всей операции (включая паузы между retry). Три попытки по 5 с с паузами ≠ «всего 5 с».
+<!-- l1-deep:4 -->
+#### О пункте 4 — Timeout
 
-**QA:** зависшие запросы не блокируют систему; ошибки ожидания предсказуемы (`ApiError` + `__cause__` как `TimeoutException`).
+**Уровни timeout в репо:**
+
+| Уровень | Где |
+|---------|-----|
+| HTTP client | `Settings.timeout_s` → `ApiClient` |
+| Compose негатив | `timeout_s=0.2` vs delay 1000 ms в MockServer (`tests/test_compose_api.py`) |
+| Job / worker | `Job.timeout`, `Job.deadline_s`, `Worker.deadline_w` → `JobDeadlineExceeded` |
+
+```python
+# Worker.execute — минимум из job timeout и оставшегося deadline
+timeout = min(job.timeout, remaining, remaining_worker)
+```
+
+**QA:** assert на тип ошибки: `ApiError` + `__cause__` is `ReadTimeout`, не только «упало».
+
+**Проверка:** `pytest tests/test_compose_api.py::test_mock_api_timeout tests/distributed_lab/test_timeout.py -q`
 
 ### 5. Idempotency
 
-Повтор операции не даёт **дополнительного эффекта** по сравнению с одним выполнением. Не требует идентичного JSON в каждом ответе (могут отличаться метаданные).
+<!-- l1-deep:5 -->
+#### О пункте 5 — Idempotency
 
-**Idempotency-Key** помогает серверу распознать повтор той же операции. GET/PUT/DELETE по семантике HTTP обычно идемпотентны; POST — обычно нет (зависит от реализации).
+**Заголовок на wire** (без мутации модели job):
 
-**Пример:** повтор создания платежа с тем же ключом не создаёт второй платёж.
+```python
+# src/distributed_lab/queue_worker.py
+if job.idempotency_key is not None:
+    kwargs["headers"]["Idempotency-Key"] = job.idempotency_key
+```
+
+**Тестовый сервер** в `tests/distributed_lab/test_timeout.py`: повторный POST с тем же ключом не увеличивает `received_requests`.
+
+**Политика retry:** POST **не** ретраится в `should_retry` / worker — защита от двойного эффекта.
+
+**Проверка:** `pytest tests/distributed_lab/test_timeout.py -q -k idempotency`
 
 ### 6. Eventual consistency
 
-Компоненты могут кратко расходиться; при отсутствии новых изменений приходят к согласованному состоянию.
+<!-- l1-deep:6 -->
+#### О пункте 6 — Eventual consistency
 
-**QA:** не считать дефектом каждую краткую задержку; ловить случаи, когда согласование не наступает за допустимое время. В тестах — **polling с deadline**, не слепой `sleep`.
+**Идея:** состояние систем может кратко расходиться; тест ждёт согласования с **deadline**, а не фиксированным `sleep`.
+
+**В репо:** worker проверяет оставшееся время через `_remaining_time` перед и после HTTP; UI-слой использует explicit waits (`PlaywrightWait` / `SeleniumWait`) вместо слепой паузы.
+
+**QA-паттерн:**
+
+```python
+# анти-паттерн: time.sleep(5)
+# лучше: wait с timeout из settings (ui_timeout_s / job deadline)
+```
+
+**Проверка:** `pytest tests/test_playwright_wait.py tests/test_selenium_wait.py -q`
 
 ### 7. Logs vs metrics vs traces
 
-| | Вопрос | Пример |
-|--|--------|--------|
-| **Logs** | что произошло? | `ApiError: HTTP 500` + метод/URL/время |
-| **Metrics** | как часто / насколько хорошо? | error rate, latency p95, retry count |
-| **Traces** | где в цепочке сервисов задержка? | gateway 20 ms → orders 50 ms → payments 2 s |
+<!-- l1-deep:7 -->
+#### О пункте 7 — Logs / metrics / traces
+
+| Сигнал | Пример в репо |
+|--------|----------------|
+| **Logs** | `INFO lab_fw.api`, `WARNING lab_fw.core.retry` при retry |
+| **Metrics** | ручные counters в L3: `http_requests`, `503_count` |
+| **Traces** | нет полного OTel; есть wire ID `X-Request-ID` (п. 8) |
+
+**Практика L3:** `caplog` ловит два WARNING перед успешным retry на 503.
+
+**Проверка:** `pytest tests/distributed_lab/test_l3_investigation.py -q`
 
 ### 8. Correlation / Request / Trace ID
 
-Идентификаторы связывают записи одного запроса или бизнес-процесса. Request ID — часто один HTTP-запрос; Correlation ID — несколько связанных шагов; Trace ID — распределённая трассировка. При retry политика может выдать новый Request ID, сохранив Correlation/Trace ID.
+<!-- l1-deep:8 -->
+#### О пункте 8 — Correlation / Request / Trace ID
+
+**В репо:** job передаёт заголовки как есть — тесты задают `X-Request-ID`:
+
+```python
+# tests/distributed_lab/test_timeout.py — job headers на HTTP
+headers={"X-Request-ID": "req-123"}
+```
+
+**Retry:** каждая попытка GET может повторить тот же `Idempotency-Key`; Request ID политика зависит от API (здесь — то, что положили в job).
+
+**QA:** grep по репо: `grep -Rni "X-Request-ID" src tests`
+
+**Проверка:** `pytest tests/distributed_lab/test_timeout.py -q -k request`
 
 ### 9. Env vs build («locally green ≠ CI»)
 
-- **Env** — URL, токены, таймауты, режим запуска.
-- **Build** — код, зависимости, образ Docker.
+<!-- l1-deep:9 -->
+#### О пункте 9 — Env vs build
 
-Успех локально не доказывает CI. Контролировать: версию Python/зависимостей, секреты/env, состав образа, доступность mock/внешних сервисов, команду pytest в workflow. В этом репо Compose даёт согласованный набор сервисов; CI проверяет воспроизводимость.
+**Env (пример L3):** локально `LAB_FW_API_TOKEN` может быть пуст; в CI workflow **tests** secret **обязателен**.
+
+**Build:** `git rev-parse HEAD`, editable `lab-fw`, Docker image target `ci` vs `local` (Avast CA).
+
+```bash
+python -c "import os; print(os.getenv('LAB_FW_API_TOKEN', 'MISSING'))"
+docker compose config | head
+```
+
+**QA:** падение только в CI → сначала diff env и команды pytest в `.github/workflows/`, не «переписывать тест».
+
+**Проверка:** прочитай `tests/distributed_lab/test_l3_investigation.py` (секции env/build).
 
 ## L2 — очередь, retry, timeout, deadline, idempotency
+
+<!-- readme-chapter:l2 -->
+### О разделе
+
+**L2** — минимальный «микросервисный» контур в одном процессе: очередь → worker → HTTP с политикой retry и лимитами времени.
+
+### Архитектура
+
+```text
+Job → InMemoryQueue → Worker.run_once → retry_call → ApiClient → HTTP (mock или test server)
+```
+
+### Чему учит код
+
+- Разные правила retry для GET и POST.
+- Три уровня времени: request timeout, job deadline, worker deadline.
+- Заголовок `Idempotency-Key` без мутации модели job.
+
+### Практика
+
+Прогоняй модули по отдельности (см. команды ниже), читай traceback при искусственных 503.
+
+### Самопроверка
+
+POST с timeout не должен давать 3 попытки. GET 503→200 — три попытки, два WARNING в логах retry.
+
 
 Реализация и тесты к разделу [L1](#распределённые-системы-теория-и-термины-l1): in-memory очередь → worker → HTTP через `ApiClient` из `lab_fw`, с политикой retry и ограничениями по времени.
 
@@ -379,6 +809,25 @@ Docker / MockServer для L2 **не нужны** — достаточно venv 
 3. Метод job: POST не должен давать 3 попытки при типичной политике retry.
 
 ## L3 — расследование сбоев (чек-лист)
+
+<!-- readme-chapter:l3 -->
+### О разделе
+
+**L3** — методика расследования: не гадать, а проходить фиксированный чек-лист **Env → Build → Logs → Metrics → Trace**.
+
+### Отличие от I4
+
+- **I4** — *где* лежат артеfacts (pytest, compose logs, Actions).
+- **L3** — *в каком порядке* смотреть сигналы и как фиксировать выводы (counters, caplog).
+
+### Практика в репо
+
+`tests/distributed_lab/test_l3_investigation.py` — retry с MockTransport, перехват WARNING через `caplog`.
+
+### Самопроверка
+
+Воспроизведи сценарий «503 три раза» и выпиши три счётчика из теста. Найди в коде grep по `X-Request-ID`.
+
 
 Систематическая диагностика по пяти направлениям: **Env → Build → Logs → Metrics → Trace**. Практика: исследование **retry**, логов (`caplog`) и **ручных счётчиков расследования** (*investigation counters*).
 
@@ -452,6 +901,26 @@ pytest tests/distributed_lab/test_l3_investigation.py -v
 `MockTransport` — без реальной сети и без Docker/MockServer. Автоматические метрики и сквозная tracing-платформа в рамках L3 не реализуются.
 
 ## M1 — параллельное выполнение и изоляция ресурсов
+
+<!-- readme-chapter:m1 -->
+### О разделе
+
+**M1** — параллельный pytest (`pytest-xdist`): ускорение и **риски** общих ресурсов.
+
+### Главная идея
+
+Параллелизм безопасен только для **независимых** тестов. Общий MockServer, файл или браузер требуют стратегии: `xdist_group` + `--dist loadgroup`, отдельные файлы, `FileLock`, или `@serial`.
+
+### Где смотреть код
+
+- `tests/conftest.py` — `pytest_collection_modifyitems`, `tryfirst=True`.
+- `tests/test_compose_api.py` — `reset_mockserver` (не замена группировке!).
+- `tests/parallel_lab/test_parallel_resources.py` — файлы и lock.
+
+### Самопроверка
+
+В логе compose + loadgroup видишь `@mockserver` и один worker для всех compose-тестов.
+
 
 Раздел про `pytest-xdist`: общие ресурсы (MockServer, файлы, браузер), группировка `xdist_group`, `loadgroup` и изоляция артеfactов между worker-процессами.
 
@@ -561,6 +1030,25 @@ pytest tests/parallel_lab -m parallel_lab -n 2 -v
 
 ## M2 — удалённый браузер (Selenium Grid) и UI в Docker
 
+<!-- readme-chapter:m2 -->
+### О разделе
+
+**M2** — UI-тесты как инфраструктура: браузер в Grid, runner pytest отдельно, два режима — parallel и **serial** (module state).
+
+### Playwright vs Selenium
+
+- **Playwright** в CI — образ `playwright` target (браузеры внутри).
+- **Selenium** — контейнер Grid, `SELENIUM_REMOTE_URL`.
+
+### noVNC
+
+Порт **7900** — визуальная отладка Grid локально.
+
+### Самопроверка
+
+Module-scoped login chains только с `-m serial` без `-n`. Параллельный UI — `-n 2` и достаточно сессий Grid.
+
+
 Браузер в контейнере Grid; параллельные UI/Selenium-тесты используют несколько сессий. Сценарии с module-scoped fixtures и общим состоянием помечены `@pytest.mark.serial` и запускаются без `-n`.
 
 ### Изменения в коде
@@ -630,6 +1118,27 @@ Runner pytest и браузер разделены: UI-параллелизм �
 
 ## N1 — отчёты Allure
 
+<!-- readme-chapter:n1 -->
+### О разделе
+
+**N1** — Allure как аналитический отчёт: метаданные, категории падений, окружение прогона, шаги через `lab_fw.reporting`.
+
+### Поток данных
+
+```text
+pytest --alluredir → conftest (categories + environment) → allure-results/ → CI artifact → allure serve
+```
+
+### Важно
+
+- xdist workers не пишут environment — только master process.
+- `categories.json` статический; env динамический.
+
+### Самопроверка
+
+Открой Behaviors, Categories, Environment после локального `allure serve`.
+
+
 Allure подключён через `lab_fw.reporting`: метки (epic/feature/severity), steps/attachments, `categories.json`, динамический `environment.properties` в `tests/conftest.py`. Workflow **CI** собирает результаты полного Docker-прогона в artifact `allure-results`; workflow **tests** — более узкий набор без UI/compose.
 
 ### Что добавлено
@@ -676,6 +1185,26 @@ allure serve allure-results
 Метки feature/epic дополняются ссылками testcase/issue — см. [N2](#n2--jira--testrail).
 
 ## N2 — Jira и TestRail
+
+<!-- readme-chapter:n2 -->
+### О разделе
+
+**N2** — traceability: pytest ↔ TestRail ↔ Jira ↔ Allure. Два **независимых** канала (ссылки vs upload run).
+
+### Настройка trial
+
+1. Создай case C1/C2, поле References с node id pytest.
+2. Добавь `@testcase` / `@issue` на тесты.
+3. JUnit + trcli для run (канал B).
+
+### Безопасность
+
+`.env` с API key TestRail — только локально, в `.gitignore`.
+
+### Самопроверка
+
+Links в Allure; в TestRail run — `test_id` = `C1`, не `1`; фильтр Assigned To снят.
+
 
 Один прогон pytest можно связать с каталогом кейсов (TestRail) и задачами (Jira): ссылки в Allure (`@testcase`, `@issue`), поле References в TestRail, опциональная загрузка результатов через trcli. Группировка по `feature` и `severity` описана в [N1](#n1--отчёты-allure).
 
@@ -807,6 +1336,17 @@ bash scripts/upload_testrail.sh
 
 ## Allure (кратко)
 
+<!-- readme-chapter:allure_short -->
+### О разделе
+
+Краткая шпаргалка команд Allure. Полная глава — [N1](#n1--отчёты-allure).
+
+### Когда использовать
+
+- Локальная отладка упавшего теста с attachments.
+- Просмотр artifact из GitHub Actions без полного CI локально.
+
+
 ```bash
 pytest -q --alluredir=allure-results
 allure serve allure-results
@@ -818,6 +1358,21 @@ allure serve allure-results
 
 ## Документация модулей
 
+<!-- readme-chapter:modules -->
+### О разделе
+
+Углубление по подсистемам `lab_fw` и pytest. Корневой README — карта; модульные README — API контрактов, UI стеки, reporting decorators.
+
+### Рекомендуемый порядок
+
+1. [API](src/lab_fw/api/README.md) — клиент и ошибки.
+2. [Mocks lab](tests/mocks_lab/README.md) — швы подмены.
+3. [Reporting](src/lab_fw/reporting/README.md) — Allure слой.
+4. [UI](src/lab_fw/ui/README.md) — Playwright/Selenium.
+5. [Pytest plugin](src/lab_fw/pytest_plugin/README.md) — hooks.
+6. [README_PYTEST](tests/README_PYTEST.md) — изоляция и hygiene тестов.
+
+
 - [API](src/lab_fw/api/README.md)
 - [UI](src/lab_fw/ui/README.md)
 - [Reporting / Allure](src/lab_fw/reporting/README.md)
@@ -826,5 +1381,13 @@ allure serve allure-results
 - [Mocks lab](tests/mocks_lab/README.md)
 
 ## Дополнительно
+
+<!-- readme-chapter:extra -->
+### О разделе
+
+Внешний тематический план навыков (отдельный файл), не часть runtime репозитория.
+
+Используй [PLAN_MID_HP.md](PLAN_MID_HP.md) как список тем для расширения практики поверх этого README.
+
 
 Тематический план развития навыков: [PLAN_MID_HP.md](PLAN_MID_HP.md).

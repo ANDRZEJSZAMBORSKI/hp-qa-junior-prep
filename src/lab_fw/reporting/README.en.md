@@ -6,66 +6,43 @@ Framework reporting layer. Tests and `ApiClient` call this API, not `allure` dir
 
 ## Install
 
-```bash
-pip install -e ".[dev]"
-```
+<!-- mod-deep:reporting:install -->
+#### About this section — install
 
-`dev` includes `allure-pytest`. Without it, layer functions are no-ops (the suite still runs).
+`allure-pytest` is in `[dev]`. Without it, decorators and steps are no-ops.
 
 ## API
 
-| Function / decorator | Purpose |
-|----------------------|---------|
-| `step(title)` | report step (context manager) |
-| `attach_text(name, body)` | text attachment |
-| `attach_json(name, data)` | JSON attachment |
-| `@epic(value)` | epic in Behaviors |
-| `@feature(value)` | feature in Behaviors |
-| `@title(value)` | test title in the report |
-| `@description(value)` | description |
-| `@severity(SeverityLevel.*)` | severity (`SeverityLevel` enum) |
-| `@testcase(url, name=…)` | TMS link → TestRail case (N2) |
-| `@issue(url, name=…)` | link → Jira issue (N2) |
+<!-- mod-deep:reporting:api -->
+#### About this section — reporting API
 
-```python
-from lab_fw.reporting import step, attach_json, feature, severity, SeverityLevel
-from lab_fw.reporting import testcase, issue
-
-@issue("https://example.atlassian.net/browse/QA-1")
-@testcase("https://example.testrail.io/index.php?/cases/view/1", name="C1")
-@feature("API Client")
-@severity(SeverityLevel.CRITICAL)
-def test_example():
-    with step("call API"):
-        attach_json("payload", {"ok": True})
-```
-
-`ApiClient` opens a `METHOD /path` step and, on success, attaches a truncated response.
+Decorators via `decor_allure`: epic/feature/severity/testcase/issue. `ApiClient` already emits steps on HTTP.
 
 ## Allure metadata (N1)
 
-With `--alluredir`, root `tests/conftest.py`:
+<!-- mod-deep:reporting:n1 -->
+#### About this section — N1 metadata
 
-- copies **`categories.json`** from the repo root into the results folder;
-- writes **`environment.properties`** (pytest/allure versions, OS, Python, Local / Docker / GitHub Actions).
-
-A static `environment.properties` in the repo is **not** used — see the commented example in `.github/workflows/ci.yml`.
+`categories.json` plus dynamic `environment.properties` in `tests/conftest.py` (master process only).
 
 ## Run with Allure
 
-```bash
-pytest -q --alluredir=allure-results
-allure serve allure-results
-```
+<!-- mod-deep:reporting:run -->
+#### About this section — running
 
-`allure-results/` and `allure-report/` are in `.gitignore`.
+`--alluredir` is required for result files; `allure serve` is local-only.
 
 ## TestRail and Jira (N2)
 
-With `--alluredir`, `testcase` / `issue` show under **Links** in Allure. In TestRail, **References** on a case points to the pytest node id; run upload uses **trcli** (channel B). Details: [N2](../../../README.en.md#n2--jira--testrail) in the root README.
+<!-- mod-deep:reporting:n2 -->
+#### About this section — N2
+
+Links in Allure ≠ upload to TestRail (trcli). Both are described in root README N2.
 
 ## Layer tests
 
-```bash
-pytest -m reporting -q
-```
+<!-- mod-deep:reporting:tests -->
+#### About this section — layer tests
+
+`pytest -m reporting` does not collect the name `testcase` as a test (`python_functions = test_*` in pyproject).
+

@@ -2,9 +2,104 @@
 
 [RU](README.md) · [EN](README.en.md) · **PL**
 
-Repozytorium automatyzacji QA w Pythonie: framework pytest `lab_fw`, API (httpx), UI (Playwright / Selenium), mocki, Allure, Docker, Docker Compose, GitHub Actions.
+<!-- readme-preamble -->
+
+Repozytorium **hp-qa-junior-prep** to praktyczny projekt automatyzacji QA w Pythonie. Zawiera pakiet **`lab_fw`** (klient HTTP, warstwa UI, konfiguracja, reporting, plugin pytest), zestaw testów **pytest**, **Docker / Compose**, **GitHub Actions** oraz raporty **Allure**. Typowe przebiegi **nie** wołają produkcyjnego API — kontrakt symulują **MockTransport** i **MockServer**, aby ćwiczyć izolację, integrację i diagnostykę bez zależności od sieci.
+
+Ten dokument to jednocześnie **instrukcja** (polecenia, env, CI) i **podręcznik** (teoria, powiązanie z kodem, typowe błędy). Języki: [RU](README.md) · [EN](README.en.md) · **PL** (ten plik).
+
+### Dla kogo
+
+- Inżynier QA / SDET uruchamiający framework lokalnie i w CI.
+- Developer, który chce zrozumieć mocki, równoległy pytest i traceability (TestRail / Jira).
+
+### Efekty
+
+- Wybór poziomu testu: mock in-process vs MockServer w kontenerze vs UI na Grid/Docker.
+- Zrozumienie retry, timeout, deadline i idempotency na przykładzie `ApiClient` i `Worker`.
+- Badanie awarii: env → build → logs → metrics → trace.
+- Allure oraz opcjonalne powiązanie z TestRail i Jira.
+
+### Wymagania
+
+| Składnik | Wersja / uwagi |
+|----------|----------------|
+| Python | **≥ 3.11** (`pyproject.toml`) |
+| Git | klon i ten sam commit co CI |
+| Docker Desktop (opcjonalnie) | testy Compose, Grid, obraz Playwright |
+| Allure CLI (opcjonalnie) | lokalne `allure serve` |
+| TestRail CLI (opcjonalnie) | kanał B w sekcji N2 |
+
+### Mapa sekcji
+
+| Blok | Temat | Kod |
+|------|--------|-----|
+| **I1–I4** | API, mocki, negatywy, diagnostyka | `tests/mocks_lab/`, `tests/test_compose_api.py`, `src/lab_fw/api/` |
+| **L1–L3** | Systemy rozproszone, kolejka/worker, badanie | `src/distributed_lab/`, `tests/distributed_lab/` |
+| **M1–M2** | xdist, izolacja, Selenium Grid, UI w Dockerze | `tests/parallel_lab/`, `tests/conftest.py`, profile Compose |
+| **N1–N2** | Allure, TestRail, Jira | `src/lab_fw/reporting/`, `tests/test_api_client.py`, `scripts/upload_testrail.sh` |
+
+Proponowana kolejność: **Szybki start → Struktura → I1–I4 → L1 → L2 → L3 → M1 → M2 → N1 → N2**. Sekcje **Docker** i **GitHub Actions** warto mieć pod ręką przy każdym uruchomieniu.
+
+### Spis treści
+
+1. [Szybki start](#szybki-start-lokalnie)
+2. [Struktura](#struktura)
+3. [Zmienne środowiskowe](#zmienne-środowiskowe)
+4. [Markery pytest](#markery-pytest)
+5. [Docker](#docker)
+6. [GitHub Actions](#github-actions)
+7. [I1 — schemat API](#schemat-interakcji-api-i1) (w tym I2–I4)
+8. [L1 — słownik](#systemy-rozproszone-teoria-i-terminy-l1)
+9. [L2 — kolejka i worker](#l2--kolejka-retry-timeout-deadline-idempotency)
+10. [L3 — badanie awarii](#l3--badanie-awarii-checklista)
+11. [M1 — równoległość](#m1--równoległe-uruchamianie-i-izolacja-zasobów)
+12. [M2 — Grid i UI](#m2--zdalna-przeglądarka-selenium-grid-i-ui-w-dockerze)
+13. [N1 — Allure](#n1--raporty-allure)
+14. [N2 — TestRail i Jira](#n2--jira--i-testrail)
+15. [Allure (skrót)](#allure-skrót)
+16. [Dokumentacja modułów](#dokumentacja-modułów)
+
+### Jak czytać rozdziały
+
+Na początku sekcji jest **O tym rozdziale**: cel, pliki w repo, samokontrola. Potem tabele i polecenia. Przy padnięciu testu — najpierw [I4](#diagnostyka-padających-testów-i4), przy problemach infrastruktury — [L3](#l3--badanie-awarii-checklista).
 
 ## Szybki start (lokalnie)
+
+<!-- readme-chapter:quickstart -->
+### O tym rozdziale
+
+Najkrótsza ścieżka od czystej maszyny do zielonego przebiegu unit/API bez przeglądarki i MockServer — ten sam wycinek co workflow **tests** na GitHubie (bez markera `compose`).
+
+### Krok po kroku
+
+1. Sklonuj repo, wejdź do katalogu głównego.
+2. Utwórz venv na **Pythonie 3.11+** i aktywuj.
+3. `pip install -e ".[dev]"` — editable `lab-fw` oraz pytest, xdist, allure, playwright, selenium, filelock.
+4. Uruchom szybki suite (polecenie poniżej). Oczekuj setek passed; kilka minut na laptopie.
+
+### Filtr markerów
+
+`-m "not ui and not selenium and not compose"` pomija testy wymagające prawdziwej przeglądarki lub kontenera `mock-api`. Do pierwszego sukcesu nie potrzebujesz Dockera ani `playwright install`.
+
+### UI (osobno)
+
+Playwright i Selenium wymagają przeglądarki. Playwright: `playwright install chromium`. Selenium 4 na Windows często sam pobiera Chrome (Selenium Manager).
+
+### Samokontrola
+
+| Pytanie | Gdzie sprawdzić |
+|---------|-----------------|
+| Editable install? | `python -m pip show lab-fw` |
+| Działa xdist? | w output pytest jest `[gw0]` przy `-n auto` |
+| Dlaczego brak compose? | brak MockServer — sekcja Docker |
+
+### Typowe problemy
+
+- **Zła wersja Pythona** — nowe venv 3.11+.
+- **Import errors** — venv aktywne? `pip install -e ".[dev]"`?
+- **Playwright** — nie uruchamiaj `-m ui` przed `playwright install`.
+
 
 ```bash
 python -m venv .venv
@@ -25,6 +120,38 @@ pytest -m selenium -q
 
 ## Struktura
 
+<!-- readme-chapter:structure -->
+### O tym rozdziale
+
+Mapa repozytorium: kod frameworka, scenariusze pytest, Docker i CI.
+
+### Drzewo (główne ścieżki)
+
+| Path | Zawartość |
+|------|-----------|
+| `src/lab_fw/api/` | `ApiClient`, retry, auth, błędy |
+| `src/lab_fw/ui/` | Playwright / Selenium, page objects |
+| `src/lab_fw/config/` | `Settings`, env |
+| `src/lab_fw/reporting/` | dekoratory Allure |
+| `src/lab_fw/pytest_plugin/` | hooki, markery |
+| `src/distributed_lab/` | `Job`, `Worker`, kolejka (L2) |
+| `tests/mocks_lab/` | mocki (I2) |
+| `tests/distributed_lab/` | L2/L3 |
+| `tests/parallel_lab/` | M1 |
+| `scripts/` | upload TestRail |
+| `categories.json` | Allure Categories |
+| `.github/workflows/` | **tests**, **CI** |
+
+### Dwa poziomy
+
+- **`lab_fw`** — biblioteka importowana przez testy.
+- **`tests/`** — katalog wzorców i regresji.
+
+### Samokontrola
+
+Po `pip install -e ".[dev]"` polecenie `import lab_fw` z katalogu głównego musi działać.
+
+
 | Ścieżka | Przeznaczenie |
 |---------|---------------|
 | `src/lab_fw/` | framework (api, ui, config, reporting, plugin pytest) |
@@ -35,6 +162,30 @@ pytest -m selenium -q
 | `.github/workflows/ci.yml` | Compose: API → Selenium Grid → Playwright w Dockerze |
 
 ## Zmienne środowiskowe
+
+<!-- readme-chapter:env -->
+### O tym rozdziale
+
+Konfiguracja przez env i `Settings`. Większość testów MockTransport **nie wymaga** prawdziwego tokenu.
+
+### Kolejność
+
+1. Wartość w teście/fixture.
+2. Env (`LAB_FW_*`).
+3. Domyślne w kodzie.
+
+### Praktyka
+
+- Lokalnie token może być pusty.
+- W CI workflow **tests** token ze Secrets jest wymagany.
+- Testy Compose: `http://mock-api:1080` w `Settings`.
+
+### Samokontrola
+
+```bash
+python -c "from lab_fw.config import get_settings; s=get_settings(); print(s.base_url, s.timeout_s)"
+```
+
 
 | Env | Przeznaczenie |
 |-----|---------------|
@@ -50,6 +201,29 @@ Sekret CI: GitHub → Settings → Secrets → `LAB_FW_API_TOKEN`.
 
 ## Markery pytest
 
+<!-- readme-chapter:markers -->
+### O tym rozdziale
+
+Markery wybierają podzbiory testów i sterują CI. **Nie** uruchamiają infrastruktury.
+
+### CI
+
+| Workflow | Filtr | Efekt |
+|----------|-------|--------|
+| **tests** | bez ui/selenium/compose | szybki runner |
+| **CI** | często z compose | wymaga `mock-api` |
+
+### Ścieżki
+
+- `distributed_lab` — L2/L3.
+- `parallel_lab` — M1.
+- `reporting` — Allure.
+
+### Samokontrola
+
+`pytest --markers` — opisy w `pyproject.toml`.
+
+
 | Marker | Znaczenie |
 |--------|-----------|
 | `smoke` / `api` / … | zwykłe szybkie testy |
@@ -62,6 +236,31 @@ Sekret CI: GitHub → Settings → Secrets → `LAB_FW_API_TOKEN`.
 | `reporting` | testy warstwy Allure / `lab_fw.reporting` |
 
 ## Docker
+
+<!-- readme-chapter:docker -->
+### O tym rozdziale
+
+Docker odtwarza CI lokalnie: obraz `tests`, MockServer, opcjonalnie Grid/Playwright.
+
+### Model
+
+1. Obraz **ci** — pytest w Linuxie.
+2. Sieć Compose — `mock-api` po DNS.
+3. Profile — UI opcjonalnie.
+
+### `DOCKER_TARGET=local`
+
+MITM — target **local** + `avast-root.crt` lokalnie.
+
+### Samokontrola
+
+`docker compose up --build --abort-on-container-exit tests`
+
+### Błędy
+
+- Compose bez `mock-api`.
+- Mylenie CMD obrazu z workflow **tests**.
+
 
 ### Obrazy (`Dockerfile`)
 
@@ -116,6 +315,24 @@ Usługi domyślne (bez profile): `mock-api` (`:1080`) + `tests` (`${DOCKER_TARGE
 
 ## GitHub Actions
 
+<!-- readme-chapter:gha -->
+### O tym rozdziale
+
+Dwa pipeline: szybki runner i pełna integracja w Dockerze.
+
+### tests.yml
+
+- pytest bez ui/selenium/compose, artifact Allure (wycinek).
+
+### ci.yml
+
+- Pełny łańcuch Compose + Selenium + Playwright.
+
+### Nauka
+
+Logi joba → artifact → porównaj polecenie pytest z README.
+
+
 | Workflow | Co robi |
 |----------|---------|
 | **tests** | `pip install` + `pytest -m "not ui and not selenium and not compose"` + artefakt Allure |
@@ -127,6 +344,28 @@ Usługi domyślne (bez profile): `mock-api` (`:1080`) + `tests` (`${DOCKER_TARGE
 | workflow **tests** | nie | wykluczone (`not compose`) |
 
 ## Schemat interakcji API (I1)
+
+<!-- readme-chapter:i1 -->
+### O tym rozdziale (I1–I4)
+
+**Integracja / API**: test klienta HTTP bez produkcji i kiedy mock w kontenerze.
+
+| Część | Temat |
+|-------|--------|
+| **I1** | MockTransport vs MockServer |
+| **I2** | Strategia mocków |
+| **I3** | 401, timeout |
+| **I4** | Logi i CI |
+
+### Pliki
+
+- `src/lab_fw/api/client.py`
+- `tests/test_compose_api.py`
+
+### Ćwiczenie
+
+`pytest tests/mocks_lab -q` vs `docker compose up … tests`.
+
 
 Projekt ma dwa tryby testów API: izolowany `httpx.MockTransport` oraz integracyjny z osobnym MockServer przez Docker Compose. Prawdziwe cloud/API w tych przebiegach **nie** jest wołane — mock imituje kontrakt HTTP (status, JSON, nagłówki).
 
@@ -169,6 +408,14 @@ Oba podejścia ograniczają zależność od dostępności prawdziwego zewnętrzn
 
 ### Strategia mocków (I2)
 
+#### O podrozdziale I2
+
+Porównanie dwóch szwów podmiany HTTP: **MockTransport** w procesie vs **MockServer** w kontenerze.
+
+**Studium:** [tests/mocks_lab/](tests/mocks_lab/README.pl.md) i `tests/test_compose_api.py`.
+
+**Samokontrola:** dlaczego DI `transport=` jest lepsze niż ciągłe `patch('httpx.Client')`?
+
 | | `httpx.MockTransport` | MockServer |
 |--|------------------------|------------|
 | Gdzie działa | w procesie Pythona | osobna usługa (`mock-api`) |
@@ -193,6 +440,12 @@ Marker `compose` sam nie uruchamia infrastruktury — patrz komenda:
 
 ### Negatywne scenariusze integracyjne (I3)
 
+#### O podrozdziale I3
+
+Testy negatywne sprawdzają **kontrakt błędów**: 401 vs timeout transportu. Rozróżniaj HTTP od `ApiError` i `__cause__`.
+
+**Praktyka:** przeczytaj `ApiClient.get` / `ensure_success` w `src/lab_fw/api/`.
+
 W `tests/test_compose_api.py` (marker `compose`, ten sam `reset_mockserver`):
 
 | Test | MockServer | Co sprawdzamy |
@@ -203,6 +456,12 @@ W `tests/test_compose_api.py` (marker `compose`, ten sam `reset_mockserver`):
 Polityka klienta: przy 4xx/5xx `get`/`post` **zwracają** `Response` (opcjonalnie `ensure_success` → `HttpStatusError`). Błędy transportu (timeout itd.) zawsze jako `ApiError`.
 
 ### Diagnostyka padających testów (I4)
+
+#### O podrozdziale I4
+
+**Mapa miejsc** przy czerwonym pytest. Łącz z [L3](#l3--badanie-awarii-checklista).
+
+**Ćwiczenie:** zepsuj expectation w compose i sprawdź `/mockserver/verify` (202 vs nie).
 
 | Objaw | Gdzie szukać | Co sprawdzić |
 |---|---|---|
@@ -234,71 +493,203 @@ Polityka klienta: przy 4xx/5xx `get`/`post` **zwracają** `Response` (opcjonalni
 
 ## Systemy rozproszone: teoria i terminy (L1)
 
-Terminy i powiązanie z `lab_fw` (retry, timeout, `ApiError`, Compose/CI).
+<!-- readme-chapter:l1 -->
+### O tym rozdziale
+
+**L1** — fundament pod L2/L3: terminy z logów produkcyjnych i rozmów kwalifikacyjnych.
+
+### Nauka
+
+Czytaj 1–9, mapuj na `lab_fw`, potem L2.
+
+### Samokontrola
+
+retry ≠ timeout; idempotency ≠ ten sam JSON.
+
 
 ### 1. Async communication
 
-Nadawca nie musi czekać na zakończenie całej operacji, zanim pójdzie dalej; wynik może wrócić później. Async **nie równa się** kolejce — kolejka to tylko jeden z mechanizmów.
+<!-- l1-deep:1 -->
+#### O punkcie 1 — komunikacja asynchroniczna
 
-**QA:** opóźnienia, brak natychmiastowej odpowiedzi, powtórne zdarzenia, błędy tła.
+**Sens:** kod wywołujący nie blokuje się do końca przetwarzania; wynik obsługuje później inny komponent.
 
-**Przykład:** API zwraca `202 Accepted` (zadanie przyjęte); zamówienie pojawia się później — sprawdzamy i `202`, i późniejszy stan.
+**W repozytorium:** kolejka `InMemoryQueue` + `Worker.run_once()` — wrzucasz `Job`, HTTP wykona się przy następnym `run_once`, a nie w momencie `put`.
+
+```python
+# src/distributed_lab/queue_worker.py (idea)
+queue.put(job)
+worker.run_once()  # jeden job → HTTP przez ApiClient
+```
+
+**QA:** testuj osobno „przyjęte do przetwarzania” i „stan końcowy”; nie traktuj tego jak fire-and-forget bez asercji.
+
+**Sprawdzenie:** `pytest tests/distributed_lab/test_queue_worker.py -q`
 
 ### 2. Queue / event / message broker
 
-| Termin | Znaczenie | QA |
-|--------|-----------|-----|
-| **Queue** | wiadomości czekają na przetwarzanie | brak utraty, poprawna obsługa, brak złych skutków przy retry |
-| **Event** | fakt w systemie (np. `OrderCreated`) | pojawia się przy właściwych warunkach z poprawnymi danymi |
-| **Message broker** | trasuje wiadomości między serwisami (RabbitMQ, Kafka) | dostawa, routing, błędy, redelivery |
+<!-- l1-deep:2 -->
+#### O punkcie 2 — kolejka / zdarzenie / broker
+
+**W repozytorium:** uproszczona **kolejka** — FIFO na `deque`, typowany `Job` (`parse_job` → `SchemaError` przy złym payloadzie).
+
+```python
+# src/distributed_lab/queue_worker.py
+class InMemoryQueue:
+    def put(self, job: Job) -> None: ...
+    def get(self) -> Job | None: ...
+```
+
+**Zdarzenie** w produkcji to fakt domenowy (`OrderCreated`); tutaj odpowiednik to dict joba walidowany do modelu.
+
+**QA:** po `put` job nie ginie; skutki ponownej dostawy — punkt 5 (idempotency).
+
+**Sprawdzenie:** `pytest tests/distributed_lab/test_queue_worker.py -k queue -q`
 
 ### 3. Retry vs timeout
 
-- **Retry** — czy próbujemy ponownie po przejściowym błędzie (limit prób; nie retryować bez sensu np. typowego `404`).
-- **Timeout** — jak długo czekamy (connect / read / overall deadline).
+<!-- l1-deep:3 -->
+#### O punkcie 3 — retry a timeout
 
-Timeout może prowadzić do retry, ale to różne mechanizmy. Po timeoucie klienta **nie wiesz**, czy serwer dokończył pracę — ślepy retry bez idempotencji jest niebezpieczny.
+**Retry** odpowiada na pytanie „czy powtórzyć po błędzie”; **timeout** — „jak długo czekać na jedną próbę”. Po timeoutie wynik po stronie serwera jest **nieznany** — ślepy retry POST jest niebezpieczny bez idempotency.
 
-W `lab_fw`: polityka retry; po wyczerpaniu prób — oczekiwany `ApiError`.
+**Polityka w kodzie** (`src/lab_fw/api/retry_policy.py`):
+
+```python
+def should_retry(exc: ApiError) -> bool:
+    # GET + 429/503 lub GET + błąd transportu → True
+    # POST → False
+```
+
+**Orkiestracja:** `lab_fw.core.retry.retry_call` woła `should_retry` między próbami.
+
+**Sprawdzenie:** `pytest tests/test_api_retry_policy.py tests/distributed_lab/test_l3_investigation.py -q`
 
 ### 4. Timeout
 
-Maks. czas oczekiwania na połączenie, dane lub całą operację (w tym pauzy między retry). Trzy próby po 5 s z pauzami ≠ „tylko 5 s łącznie”.
+<!-- l1-deep:4 -->
+#### O punkcie 4 — timeout
 
-**QA:** zawieszone wywołania nie blokują w nieskończoność; błędy oczekiwania są przewidywalne (`ApiError` + `__cause__` jak `TimeoutException`).
+**Warstwy timeoutu w repozytorium:**
+
+| Warstwa | Gdzie |
+|---------|--------|
+| Klient HTTP | `Settings.timeout_s` → `ApiClient` |
+| Negatyw Compose | `timeout_s=0.2` vs opóźnienie 1000 ms w MockServer (`tests/test_compose_api.py`) |
+| Job / worker | `Job.timeout`, `Job.deadline_s`, `Worker.deadline_w` → `JobDeadlineExceeded` |
+
+```python
+# Worker.execute — minimum z timeoutu joba i pozostałego deadline
+timeout = min(job.timeout, remaining, remaining_worker)
+```
+
+**QA:** asercja na typ błędu: `ApiError` z `__cause__` typu `ReadTimeout`, nie tylko „padło”.
+
+**Sprawdzenie:** `pytest tests/test_compose_api.py::test_mock_api_timeout tests/distributed_lab/test_timeout.py -q`
 
 ### 5. Idempotency
 
-Ponowienie operacji nie daje **dodatkowego efektu** względem jednokrotnego wykonania. Nie wymaga identycznego JSON w każdej odpowiedzi (metadane mogą się różnić).
+<!-- l1-deep:5 -->
+#### O punkcie 5 — idempotency
 
-**Idempotency-Key** pomaga serwerowi rozpoznać tę samą operację logiczną. GET/PUT/DELETE zwykle są idempotentne semantyką HTTP; POST zwykle nie (zależy od API).
+**Nagłówek na wire** (bez mutacji modelu joba):
 
-**Przykład:** ponowne utworzenie płatności z tym samym kluczem nie tworzy drugiej płatności.
+```python
+# src/distributed_lab/queue_worker.py
+if job.idempotency_key is not None:
+    kwargs["headers"]["Idempotency-Key"] = job.idempotency_key
+```
+
+**Serwer testowy** w `tests/distributed_lab/test_timeout.py`: powtórny POST z tym samym kluczem nie zwiększa `received_requests`.
+
+**Polityka retry:** POST **nie** jest retryowany w `should_retry` / workerze — ochrona przed podwójnym efektem ubocznym.
+
+**Sprawdzenie:** `pytest tests/distributed_lab/test_timeout.py -q -k idempotency`
 
 ### 6. Eventual consistency
 
-Komponenty mogą się chwilowo rozjechać; bez nowych zapisów zbiegają się. **QA:** nie oznaczać defektem każdej krótkiej zwłoki; łapać brak zbieżności w dopuszczalnym czasie. W testach — **polling z deadline**, nie ślepy `sleep`.
+<!-- l1-deep:6 -->
+#### O punkcie 6 — eventual consistency
+
+**Idea:** stany systemów mogą chwilowo się różnić; test czeka na zgodność z **deadline**, a nie na stały `sleep`.
+
+**W repozytorium:** worker sprawdza pozostały czas przez `_remaining_time` przed i po HTTP; warstwa UI używa jawnych waitów (`PlaywrightWait` / `SeleniumWait`) zamiast ślepej pauzy.
+
+**Wzorzec QA:**
+
+```python
+# antywzorzec: time.sleep(5)
+# lepiej: wait z timeoutem ze settings (ui_timeout_s / deadline joba)
+```
+
+**Sprawdzenie:** `pytest tests/test_playwright_wait.py tests/test_selenium_wait.py -q`
 
 ### 7. Logs vs metrics vs traces
 
-| | Pytanie | Przykład |
-|--|---------|----------|
-| **Logs** | co się stało? | `ApiError: HTTP 500` + metoda/URL/czas |
-| **Metrics** | jak często / jak dobrze? | error rate, latency p95, retry count |
-| **Traces** | gdzie w łańcuchu serwisów? | gateway 20 ms → orders 50 ms → payments 2 s |
+<!-- l1-deep:7 -->
+#### O punkcie 7 — logi, metryki, trace
+
+| Sygnał | Przykład w repozytorium |
+|--------|-------------------------|
+| **Logi** | `INFO lab_fw.api`, `WARNING lab_fw.core.retry` przy retry |
+| **Metryki** | ręczne liczniki L3: `http_requests`, `503_count` |
+| **Trace** | brak pełnego OTel; jest wire ID `X-Request-ID` (pkt 8) |
+
+**Praktyka L3:** `caplog` łapie dwa WARNING przed udanym retry 503→200.
+
+**Sprawdzenie:** `pytest tests/distributed_lab/test_l3_investigation.py -q`
 
 ### 8. Correlation / Request / Trace ID
 
-Identyfikatory łączące zapisy jednego żądania lub procesu biznesowego. Request ID często = jedno HTTP; Correlation ID obejmuje powiązane kroki; Trace ID — tracing rozproszony. Przy retry polityka może dać nowy Request ID, zachowując Correlation/Trace ID.
+<!-- l1-deep:8 -->
+#### O punkcie 8 — correlation / Request / Trace ID
+
+**W repozytorium:** job przekazuje nagłówki bez zmian — testy ustawiają `X-Request-ID`:
+
+```python
+# tests/distributed_lab/test_timeout.py — nagłówki joba na HTTP
+headers={"X-Request-ID": "req-123"}
+```
+
+**Retry:** każda próba GET może powtórzyć ten sam `Idempotency-Key`; polityka Request ID zależy od API (tu — to, co włożysz w job).
+
+**QA:** przeszukaj repo: `grep -Rni "X-Request-ID" src tests`
+
+**Sprawdzenie:** `pytest tests/distributed_lab/test_timeout.py -q -k request`
 
 ### 9. Env vs build („locally green ≠ CI”)
 
-- **Env** — URL, tokeny, timeouty, tryb uruchomienia.
-- **Build** — kod, zależności, obraz Dockera.
+<!-- l1-deep:9 -->
+#### O punkcie 9 — env a build
 
-Sukces lokalnie nie dowodzi sukcesu w CI. Kontroluj: wersje Pythona/zależności, sekrety/env, zawartość obrazu, mocki/serwisy zewnętrzne, komendę pytest w workflow. W tym repo Compose spina usługi; CI sprawdza powtarzalność.
+**Env (przykład L3):** lokalnie `LAB_FW_API_TOKEN` może być pusty; w workflow CI **tests** secret jest **wymagany**.
+
+**Build:** `git rev-parse HEAD`, editable `lab-fw`, target obrazu Docker `ci` vs `local` (Avast CA).
+
+```bash
+python -c "import os; print(os.getenv('LAB_FW_API_TOKEN', 'MISSING'))"
+docker compose config | head
+```
+
+**QA:** pada tylko w CI → najpierw porównaj env i polecenia pytest w `.github/workflows/`, nie „przepisuj test”.
+
+**Sprawdzenie:** przeczytaj `tests/distributed_lab/test_l3_investigation.py` (sekcje env/build).
 
 ## L2 — kolejka, retry, timeout, deadline, idempotency
+
+<!-- readme-chapter:l2 -->
+### O tym rozdziale
+
+**L2** — kolejka → worker → HTTP z retry i limitami czasu.
+
+### Architektura
+
+Job → kolejka → Worker → ApiClient.
+
+### Samokontrola
+
+POST — jedna próba przy timeout; GET retry przy 503.
+
 
 Implementacja i testy do [L1](#systemy-rozproszone-teoria-i-terminy-l1): kolejka in-memory → worker → HTTP przez `ApiClient` z `lab_fw`, z polityką retry i limitami czasu.
 
@@ -367,6 +758,20 @@ Docker / MockServer do L2 **nie są potrzebne** — wystarczy venv i `pip instal
 3. Metoda job: POST nie powinien dawać trzech prób przy domyślnej polityce retry.
 
 ## L3 — badanie awarii (checklista)
+
+<!-- readme-chapter:l3 -->
+### O tym rozdziale
+
+**L3** — checklista **Env → Build → Logs → Metrics → Trace**.
+
+### I4 vs L3
+
+I4 — gdzie szukać; L3 — kolejność analizy.
+
+### Praktyka
+
+`test_l3_investigation.py`.
+
 
 Systematyczna diagnostyka w pięciu obszarach: **Env → Build → Logs → Metrics → Trace**. Praktyka: zachowanie **retry**, logi przez `caplog` oraz ręczne **liczniki badania** (*investigation counters*).
 
@@ -440,6 +845,20 @@ pytest tests/distributed_lab/test_l3_investigation.py -v
 `MockTransport` — bez prawdziwej sieci i bez Docker/MockServer. Automatyczne metryki i platforma tracing end-to-end nie wchodzą w zakres L3.
 
 ## M1 — równoległe uruchamianie i izolacja zasobów
+
+<!-- readme-chapter:m1 -->
+### O tym rozdziale
+
+**M1** — pytest-xdist i ryzyko współdzielonych zasobów.
+
+### Idea
+
+Równoległość dla testów niezależnych; MockServer/pliki — `loadgroup` lub `@serial`.
+
+### Kod
+
+`tests/conftest.py`, `tests/parallel_lab/`.
+
 
 `pytest-xdist` w tym repozytorium: współdzielone zasoby (MockServer, pliki, przeglądarka), `xdist_group`, `loadgroup` i artefakty per worker.
 
@@ -549,6 +968,16 @@ Równoległy przebieg przyspiesza niezależne testy; współdzielone zasoby wyma
 
 ## M2 — zdalna przeglądarka (Selenium Grid) i UI w Dockerze
 
+<!-- readme-chapter:m2 -->
+### O tym rozdziale
+
+**M2** — UI: Grid, runner pytest, parallel vs **serial**.
+
+### Samokontrola
+
+Łańcuchy module-scoped tylko w `serial`.
+
+
 Przeglądarka w kontenerze Grid; równoległe testy UI/Selenium używają wielu sesji. Scenariusze ze wspólnym stanem (module-scoped) mają `@pytest.mark.serial` i uruchamiają się bez `-n`.
 
 ### Zmiany w kodzie
@@ -616,6 +1045,16 @@ Runner pytest i przeglądarka są rozdzielone: równoległość UI — wiele ses
 
 ## N1 — raporty Allure
 
+<!-- readme-chapter:n1 -->
+### O tym rozdziale
+
+**N1** — Allure: metadane, kategorie, environment, kroki frameworka.
+
+### Samokontrola
+
+Behaviors, Categories, Environment w UI.
+
+
 Allure przez `lab_fw.reporting`: etykiety (epic/feature/severity), steps/attachments, `categories.json`, dynamiczny `environment.properties` w `tests/conftest.py`. Workflow **CI** publikuje pełny przebieg Docker w `allure-results`; **tests** — węższy zestaw bez UI/compose.
 
 ### Co dodano
@@ -662,6 +1101,16 @@ Przy `--alluredir` conftest umieszcza `categories.json` i `environment.propertie
 Etykiety feature/epic uzupełniają linki testcase/issue — zob. [N2](#n2--jira--testrail).
 
 ## N2 — Jira i TestRail
+
+<!-- readme-chapter:n2 -->
+### O tym rozdziale
+
+**N2** — traceability: pytest, TestRail, Jira, Allure; dwa kanały.
+
+### Samokontrola
+
+Links w Allure; `test_id` = `C1`; filtr Assigned To.
+
 
 Powiązanie przebiegu pytest z case’ami TestRail i zadaniami Jira: linki w Allure (`@testcase`, `@issue`), pole References w TestRail, opcjonalny upload przez trcli. Grupowanie po `feature` i `severity` — [N1](#n1--raporty-allure).
 
@@ -793,6 +1242,12 @@ Skrypt: `trcli parse_junit`, `--case-matcher property`, `--suite-id 1` (dostosuj
 
 ## Allure (skrót)
 
+<!-- readme-chapter:allure_short -->
+### O tym rozdziale
+
+Skrót poleceń Allure. Pełny rozdział: [N1](#n1--raporty-allure).
+
+
 ```bash
 pytest -q --alluredir=allure-results
 allure serve allure-results
@@ -804,6 +1259,12 @@ Upload artefaktu: `if: always()` (workflow **tests** i **CI**).
 
 ## Dokumentacja modułów
 
+<!-- readme-chapter:modules -->
+### O tym rozdziale
+
+Szczegóły modułów: API → mocks → reporting → UI → plugin → README_PYTEST.
+
+
 - [API](src/lab_fw/api/README.pl.md)
 - [UI](src/lab_fw/ui/README.pl.md)
 - [Reporting / Allure](src/lab_fw/reporting/README.pl.md)
@@ -812,5 +1273,11 @@ Upload artefaktu: `if: always()` (workflow **tests** i **CI**).
 - [Mocks lab](tests/mocks_lab/README.pl.md)
 
 ## Dodatkowo
+
+<!-- readme-chapter:extra -->
+### O tym rozdziale
+
+Zewnętrzny plan rozwoju — [PLAN_MID_HP.md](PLAN_MID_HP.md).
+
 
 Plan rozwoju umiejętności: [PLAN_MID_HP.md](PLAN_MID_HP.md).

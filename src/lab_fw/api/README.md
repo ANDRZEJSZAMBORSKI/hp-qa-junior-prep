@@ -2,129 +2,75 @@
 
 **RU** · [EN](README.en.md) · [PL](README.pl.md)
 
-HTTP-клиент `ApiClient` и демо-слой auth.
+<!-- mod-preamble -->
+
+### О модуле API
+
+Пакет `lab_fw.api` — HTTP-клиент с явной политикой ошибок, optional Bearer, pydantic-схемами и **opt-in** retry. Документ связан с корневым README **I1–I3** и [mocks_lab](../../../tests/mocks_lab/README.md).
+
+**Файлы:** `client.py`, `auth.py`, `schemas.py`, `retry_policy.py`.
 
 ## Установка
 
-```bash
-pip install -e ".[dev]"
-```
+<!-- mod-deep:api:install -->
+### О разделе — установка
+
+Editable install подтягивает `httpx`, `pydantic` (dev). Без `[dev]` часть тестов недоступна.
 
 ## Settings / token
 
-| Env | Назначение |
-|-----|------------|
-| `LAB_FW_BASE_URL` | base URL (default `https://example.com`) |
-| `LAB_FW_TIMEOUT_S` | timeout секунд |
-| `LAB_FW_LOG_LEVEL` | уровень логов |
-| `LAB_FW_API_TOKEN` | optional Bearer (если задан — уходит в `Authorization`) |
+<!-- mod-deep:api:settings -->
+### О разделе — Settings
 
-Без `LAB_FW_API_TOKEN` заголовок не ставится.
+`get_settings()` читает env один раз за процесс; см. корневой README «Переменные окружения». Token опционален — многие тесты используют MockTransport без Bearer.
 
 ## Bearer
 
-При создании клиента, если в settings есть `api_token`:
+<!-- mod-deep:api:bearer -->
+### О разделе — Bearer
 
-```text
-Authorization: Bearer <token>
-```
-
-После OAuth можно обновить:
-
-```python
-client.set_bearer_token("tok-123")
-```
+Заголовок ставится при создании клиента, если `api_token` задан. Обновление токена после OAuth — `set_bearer_token`.
 
 ## Client credentials (mock-flow)
 
-```python
-from lab_fw.api.auth import fetch_client_credentials_token
+<!-- mod-deep:api:oauth -->
+### О разделе — client credentials
 
-token = fetch_client_credentials_token(client, "client-id", "client-secret")
-# POST /oauth/token (form) → access_token → set_bearer_token
-```
+Демо OAuth без IdP: `fetch_client_credentials_token` → POST `/oauth/token` через тот же `ApiClient` (мокается transport).
 
-Ошибки HTTP ≥400 / битый JSON / нет `access_token` → `ApiError`.
-
-В unit-тестах endpoint мокается через `httpx.MockTransport`, без реального IdP.
+**Проверка:** `pytest tests/test_api_auth.py -q`
 
 ## Schema (pydantic)
 
-Ответы API валидируются через модели в `lab_fw.api.schemas` (не сырой `allure`/`assert` по полям вручную в каждом тесте).
+<!-- mod-deep:api:schema -->
+### О разделе — Schema
 
-| Модель | Поля | Политика |
-|--------|------|----------|
-| `User` | `id: int`, `name: str` | `strict=True`, `extra="forbid"` |
-| `TokenResponse` | `access_token`, `token_type`, `expires_in` | то же |
+`parse_user` / `parse_token` централизуют валидацию JSON → `SchemaError` вместо KeyError в каждом тесте.
 
-```python
-from lab_fw.api.schemas import parse_user, parse_token
-
-user = parse_user(response.json())
-token = parse_token(response.json())
-```
-
-Ошибка валидации → `SchemaError` (наследник `ApiError`).  
-`pydantic>=2` — в optional `dev`.
+**Проверка:** `pytest tests/test_api_schemas.py -q`
 
 ## Negative / errors
 
-`ApiClient.get/post` **не** кидают на 4xx/5xx сами — возвращают `httpx.Response`.  
-Проверка статуса — явно:
+<!-- mod-deep:api:negative -->
+### О разделе — Negative / errors
 
-```python
-from lab_fw.api.client import ensure_success
+4xx/5xx **не** exception по умолчанию — явный контракт. Transport → `ApiError` с `__cause__`.
 
-response = client.get("/users/999")
-ensure_success(response)  # status < 400 → тот же response; иначе HttpStatusError
-```
-
-| Тип | Когда |
-|-----|--------|
-| `HttpStatusError` (`ApiError`) | `ensure_success` при status ≥ 400 (в Allure — attach status/body) |
-| `ApiError` | transport: `ConnectError`, `ReadTimeout`, … |
-| `SchemaError` (`ApiError`) | 200 OK, но JSON не проходит схему |
-
-Иерархия:
-
-```text
-ApiError
- ├── SchemaError
- └── HttpStatusError
-```
+**Проверка:** `pytest tests/test_api_negative.py tests/test_compose_api.py -q`
 
 ## Retry policy
 
-Retry **не** включён в каждый `get/post`. Явно:
+<!-- mod-deep:api:retry -->
+### О разделе — Retry policy
 
-```python
-from lab_fw.core.retry import retry_call
-from lab_fw.api.client import ensure_success
+Retry только через `retry_call`, не внутри каждого `get`. Таблица ниже — источник истины для L1 п.3 и L2 worker.
 
-def once():
-    return ensure_success(client.get("/users"))
-
-retry_call(once, delay_s=0, retry_on=(ApiError,), retry_if=True)
-```
-
-`retry_if=True` → решение через `lab_fw.api.retry_policy.should_retry`.
-
-| Ситуация | Retry? |
-|----------|--------|
-| GET + HTTP **429** / **503** (`HttpStatusError`) | да |
-| GET + transport (`ConnectError` / `ReadTimeout` → `ApiError`) | да |
-| GET + **400 / 401 / 403 / 404 / 422 / 500** | нет |
-| POST / не-GET | нет |
-| не-`ApiError` | нет (при `retry_if=True` пробрасывается) |
-
-`HttpStatusError` хранит `response`, чтобы policy видела method/status.
+**Проверка:** `pytest tests/test_api_retry_policy.py -q`
 
 ## Тесты
 
-```bash
-pytest -q tests/test_api_auth.py
-pytest -q tests/test_api_schemas.py
-pytest -q tests/test_api_negative.py
-pytest -q tests/test_api_retry_policy.py
-pytest -q -m api
-```
+<!-- mod-deep:api:tests -->
+### О разделе — тесты API
+
+Запускай по файлам при локализации регрессии; `-m api` — весь маркированный набор.
+

@@ -2,70 +2,51 @@
 
 **RU** · [EN](README.en.md) · [PL](README.pl.md)
 
-Слой отчёта фреймворка. Тесты и `ApiClient` вызывают этот API, а не `allure` напрямую.
+<!-- mod-preamble -->
+
+### О модуле reporting
+
+Фасад над Allure: тесты не импортируют `allure` напрямую — проще no-op без `allure-pytest` и единый стиль steps/attachments. См. корневой **N1–N2**.
 
 ## Установка
 
-```bash
-pip install -e ".[dev]"
-```
+<!-- mod-deep:reporting:install -->
+### О разделе — установка
 
-В `dev` есть `allure-pytest`. Без него функции слоя — no-op (прогон не падает).
+`allure-pytest` в `[dev]`. Без него декораторы и steps — no-op.
 
 ## API
 
-| Функция / декоратор | Назначение |
-|---------------------|------------|
-| `step(title)` | шаг отчёта (context manager) |
-| `attach_text(name, body)` | текстовый attachment |
-| `attach_json(name, data)` | JSON attachment |
-| `@epic(value)` | epic в Behaviors |
-| `@feature(value)` | feature в Behaviors |
-| `@title(value)` | заголовок теста в отчёте |
-| `@description(value)` | описание |
-| `@severity(SeverityLevel.*)` | severity (enum `SeverityLevel`) |
-| `@testcase(url, name=…)` | ссылка TMS → TestRail case (N2) |
-| `@issue(url, name=…)` | ссылка → Jira issue (N2) |
+<!-- mod-deep:reporting:api -->
+### О разделе — API reporting
 
-```python
-from lab_fw.reporting import step, attach_json, feature, severity, SeverityLevel
-from lab_fw.reporting import testcase, issue
-
-@issue("https://example.atlassian.net/browse/QA-1")
-@testcase("https://example.testrail.io/index.php?/cases/view/1", name="C1")
-@feature("API Client")
-@severity(SeverityLevel.CRITICAL)
-def test_example():
-    with step("call API"):
-        attach_json("payload", {"ok": True})
-```
-
-`ApiClient` сам открывает шаг `METHOD /path` и при успехе аттачит обрезанный response.
+Декораторы через `decor_allure`: epic/feature/severity/testcase/issue. `ApiClient` уже emit steps при HTTP.
 
 ## Метаданные Allure (N1)
 
-При `--alluredir` корневой `tests/conftest.py`:
+<!-- mod-deep:reporting:n1 -->
+### О разделе — метаданные N1
 
-- копирует **`categories.json`** из корня репо в папку результатов;
-- пишет **`environment.properties`** (версии pytest/allure, OS, Python, Local / Docker / GitHub Actions).
-
-Статический `environment.properties` в репо **не используется** — см. закомментированный пример в `.github/workflows/ci.yml`.
+`categories.json` + dynamic `environment.properties` в `tests/conftest.py` (master process only).
 
 ## Прогон с Allure
 
-```bash
-pytest -q --alluredir=allure-results
-allure serve allure-results
-```
+<!-- mod-deep:reporting:run -->
+### О разделе — прогон
 
-Папки `allure-results/` и `allure-report/` в `.gitignore`.
+`--alluredir` обязателен для файлов; `allure serve` только локально.
 
 ## TestRail и Jira (N2)
 
-При `--alluredir` декораторы `testcase` / `issue` попадают в **Links** отчёта Allure. В TestRail на кейсе поле **References** связывает case с pytest node id; загрузка run — через **trcli** (канал B). Подробно: [N2](../../../README.md#n2--jira--testrail) в корневом README.
+<!-- mod-deep:reporting:n2 -->
+### О разделе — N2
+
+Links в Allure ≠ upload в TestRail (trcli). Оба описаны в корневом README N2.
 
 ## Тесты слоя
 
-```bash
-pytest -m reporting -q
-```
+<!-- mod-deep:reporting:tests -->
+### О разделе — тесты слоя
+
+`pytest -m reporting` — не собирает имя `testcase` как тест (`python_functions = test_*` в pyproject).
+

@@ -10,98 +10,43 @@ Shows dependency substitution at two levels: Python object/method mocks and `htt
 
 ## How to run
 
-From the `hp-qa-junior-prep` repo root (venv active):
+<!-- mod-deep:mocks_lab:run -->
+#### About this section — running
 
-```bash
-# whole lab
-pytest -v tests/mocks_lab
-
-# pure mocks only
-pytest -v -m mocks_pure tests/mocks_lab
-
-# MockTransport only
-pytest -v -m mocks_httpx tests/mocks_lab
-
-# everything marked mocks
-pytest -v -m mocks tests/mocks_lab
-
-# smoke cases from the lab (stub / spy / monkeypatch)
-pytest -v -m smoke tests/mocks_lab
-```
-
-Expect: `INFO [lab_fw.api] …` logs; on retry — `WARNING [lab_fw.core.retry] …`; all tests **passed** at the end.  
-Full repo run: `pytest -q` (lab + the rest of `lab_fw` tests).
-
----
+Filters `mocks_pure` / `mocks_httpx` split Part I and II without listing files by hand.
 
 ## Layout
 
-| File | Contents |
-|------|----------|
-| `test_unittest_mock_basics.py` | `Mock`: `return_value`, `side_effect`, `call_count`, `call_args_list` |
-| `test_mock_patch_api_client.py` | `patch.object` / `patch(httpx.Client)` / `MagicMock` / `ConnectError` → `ApiError` |
-| `test_mock_side_effect_and_calls.py` | `side_effect` + custom `@retry` and `retry_call` |
-| `test_mock_vs_spy.py` | stub vs `Mock(wraps=…)` vs `monkeypatch.setattr` |
-| `test_mock_transport_basics.py` | `MockTransport`: `Settings` built **manually** in the test |
-| `test_mock_transport_basics_02.py` | same ideas, but `settings` from a **fixture** (`conftest`) |
+<!-- mod-deep:mocks_lab:structure -->
+#### About this section — layout
 
-Two transport files and some overlapping cases are **intentional**: compare styles (manual `Settings` vs fixture; one fat test vs `@parametrize`).
-
-Markers (`mocks`, `mocks_pure`, `mocks_httpx`, `smoke`) are placed where they help filtering — not as a single product-wide policy.
-
----
+Two transport files intentionally duplicate ideas — compare fixture vs manual Settings.
 
 ## Part I — pure mocks
 
-We replace a **Python object or method**:
+<!-- mod-deep:mocks_lab:pure -->
+#### About this section — pure mocks
 
-- `Mock` / `MagicMock` — no real HTTP;
-- `patch` / `patch.object` — temporarily replace `request` or `httpx.Client`;
-- `wraps=` — spy: real function + call history;
-- `monkeypatch` — pytest way to replace a class/module attribute for the test.
-
-Pros: fast, precise, good for unit tests.  
-Cons: easy to patch the wrong seam; weak visibility of a real `httpx.Request` (path/params/headers/body).
-
----
+Patching at the wrong layer is a common junior mistake. Ask: are we replacing the **client**, a **method**, or the **transport**?
 
 ## Part II — `httpx.MockTransport`
 
-We replace the **transport** of a real `httpx.Client` inside `ApiClient`:
+<!-- mod-deep:mocks_lab:transport -->
+#### About this section — MockTransport
 
-```text
-ApiClient → httpx.Client(transport=MockTransport(handler)) → handler(request) → Response | raise
-```
-
-The handler sees a real `httpx.Request` (method, path, params, headers) and can:
-
-- return JSON / text / a chosen status;
-- raise `ConnectError` / `ReadTimeout` → our client raises `ApiError` (`__cause__` kept);
-- keep state (retry: 2 failures → success).
-
-Pros: closer to a real HTTP stack without the network; DI via `transport=` is cleaner than endless `patch`.  
-Cons: a bit more handler code; still not a live API.
-
----
+Preferred style for `ApiClient(settings, transport=...)`. The handler sees a real `httpx.Request`.
 
 ## When to use what (cheat sheet)
 
-| Task | Usually |
-|------|---------|
-| Test your retry / a branch without HTTP | `Mock` + `side_effect` |
-| Replace one method on an already built client | `patch.object` |
-| Avoid creating a real `httpx.Client` | `patch("…httpx.Client")` |
-| Assert the right path/params/header went out | `MockTransport` + assert on `request` |
-| Network error / timeout through the client | `MockTransport` raise **or** `patch` + `side_effect` |
-| `ApiClient` + `retry_call` integration | `MockTransport` with an attempts counter |
+<!-- mod-deep:mocks_lab:cheatsheet -->
+#### About this section — cheat sheet
 
-**MockTransport / DI transport** is the preferred style for the API client in this repo; pure mocks — for isolating helpers and narrow unit tests.
-
----
+Use the table in code review: transport for HTTP contract, mock for a narrow logic branch.
 
 ## Tie-in with `lab_fw`
 
-- `ApiClient(settings, transport=…)` — extension point.
-- `ApiError` wraps `httpx.HTTPError`.
-- `retry_call` / `@retry` decorator — around client calls.
-- Logging is already started in root `tests/conftest.py` (`pytest_configure` → `setup_logging`).
+<!-- mod-deep:mocks_lab:tiein -->
+#### About this section — tie-in with lab_fw
+
+Retry logs are already in conftest — look for WARNING with `pytest -v tests/mocks_lab`.
+

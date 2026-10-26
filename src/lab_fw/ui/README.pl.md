@@ -2,9 +2,9 @@
 
 [RU](README.md) · [EN](README.en.md) · **PL**
 
-Warstwa UI: **Playwright = primary**, **Selenium = drugi stack** (D2). Nie mieszamy stacków w jednej klasie page.
+Warstwa UI: **Playwright** jako główny stos, **Selenium** jako drugi (Grid/Docker). Stosów nie mieszamy w jednej klasie page.
 
-Fazy prep: **D1** Playwright · **D2** Selenium · **D3** POM (pages + components) · część **D4** (explicit waits w helperach).
+Przewodnik obejmuje instalację, ustawienia, POM, explicit waits oraz powiązanie z **M2** i markerem `serial` w głównym README.
 
 ## Po co
 
@@ -40,7 +40,7 @@ Demo: [the-internet.herokuapp.com](https://the-internet.herokuapp.com/) (login /
 
 ---
 
-## Struktura (D3 POM)
+## Struktura (POM)
 
 ```text
 lab_fw/ui/
