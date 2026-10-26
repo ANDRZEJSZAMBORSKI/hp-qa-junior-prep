@@ -44,7 +44,7 @@ def attach_json(name, data):
         attachment_type=allure.attachment_type.JSON,
     )
 
-def decor_allure(dec_allure: str, value: str):
+def decor_allure(dec_allure: str, value: str, name: str | None = None):
     def decorator(fn):
         @wraps(fn)
         def wrapper(*args, **kwargs):
@@ -54,6 +54,10 @@ def decor_allure(dec_allure: str, value: str):
             return wrapper
         
         dec_func = getattr(allure, dec_allure)
+
+        if name is not None:
+            return dec_func(value, name=name)(wrapper)
+        
         return dec_func(value)(wrapper)
     
     return decorator
@@ -76,3 +80,9 @@ def title(value):
 
 def description(value):
     return decor_allure("description", value)
+
+def testcase(url: str, name: str | None = None):
+    return decor_allure("testcase", url, name)
+
+def issue(url: str, name: str | None = None):
+    return decor_allure("issue", url, name)

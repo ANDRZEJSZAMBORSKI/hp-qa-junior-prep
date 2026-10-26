@@ -1,4 +1,4 @@
-from lab_fw.reporting import step, attach_text, attach_json, epic, feature, severity, title, description, SeverityLevel
+from lab_fw.reporting import step, attach_text, attach_json, epic, feature, severity, title, description, SeverityLevel, testcase, issue
 import pytest
 import lab_fw.reporting.allure_tools as allure_tools
 import json
@@ -207,7 +207,7 @@ def test_step_with_allure(monkeypatch):
     assert captured["executed"] is True
 
 
-
+@pytest.mark.reporting
 @pytest.mark.parametrize(
     "level",
     [
@@ -223,7 +223,7 @@ def test_severity_accepts_valid_levels(level):
 
     assert callable(decorator)
 
-
+@pytest.mark.reporting
 @pytest.mark.parametrize(
     "value",
     [
@@ -242,6 +242,7 @@ def test_severity_rejects_invalid_values(value):
     with pytest.raises(ValueError, match="severity must be a SeverityLevel value"):
         severity(value)
 
+@pytest.mark.reporting
 @pytest.mark.parametrize(
     "value",
     [
@@ -278,6 +279,137 @@ def test_severity_passes_valid_values_to_allure(monkeypatch, value):
     assert captured["value"] == value.value
     assert decorated_test() == "OK"
 
+@pytest.mark.reporting
+def test_testcase_without_allure(monkeypatch):
+    monkeypatch.setattr(
+                            allure_tools,
+                            "allure",
+                            None,
+                        )
+
+    def sample_test():
+        return "OK"
+
+    decorated_test = testcase("https://testrail.example.com/index.php?/cases/view/1234")(sample_test)
+    result = decorated_test()
+    assert result == "OK"
+
+@pytest.mark.reporting
+def test_testcase_with_allure(monkeypatch):
+    captured = {}
+
+    def fake_testcase(value, name: str | None = None):
+        captured["value"] = value
+        captured["name"] = name
+
+        def decorator(fn):
+            return fn
+
+        return decorator
+
+    monkeypatch.setattr(
+        allure_tools.allure,
+        "testcase",
+        fake_testcase,
+    )
+
+    def sample_test():
+        return "OK"
+
+    decorated_test = testcase("https://testrail.example.com/index.php?/cases/view/1234")(sample_test)
+
+    assert captured["value"] == "https://testrail.example.com/index.php?/cases/view/1234"
+    assert captured["name"] is None
+    assert decorated_test() == "OK"
+
+@pytest.mark.reporting
+def test_issue_without_allure(monkeypatch):
+    monkeypatch.setattr(
+                            allure_tools,
+                            "allure",
+                            None,
+                        )
+
+    def sample_test():
+        return "OK"
+
+    decorated_test = issue("https://jira.example.com/browse/QA-1")(sample_test)
+    result = decorated_test()
+    assert result == "OK"
+
+@pytest.mark.reporting
+def test_issue_with_allure(monkeypatch):
+    captured = {}
+
+    def fake_issue(value, name: str | None = None):
+        captured["value"] = value
+        captured["name"] = name
+
+        def decorator(fn):
+            return fn
+
+        return decorator
+
+    monkeypatch.setattr(
+        allure_tools.allure,
+        "issue",
+        fake_issue,
+    )
+
+    def sample_test():
+        return "OK"
+
+    decorated_test = issue("https://jira.example.com/browse/QA-1")(sample_test)
+
+    assert captured["value"] == "https://jira.example.com/browse/QA-1"
+    assert captured["name"] is None
+    assert decorated_test() == "OK"
+
+@pytest.mark.reporting
+def test_testcase_with_name(monkeypatch):
+    captured = {}
+
+    def fake_testcase(url, name=None):
+        captured["url"] = url
+        captured["name"] = name
+
+        def decorator(fn):
+            return fn
+
+        return decorator
+
+    monkeypatch.setattr(allure_tools.allure, "testcase", fake_testcase)
+
+    @testcase("https://testrail.example.com/index.php?/cases/view/1234", name="Login test")
+    def sample_test():
+        return "OK"
+
+    assert captured["url"] == "https://testrail.example.com/index.php?/cases/view/1234"
+    assert captured["name"] == "Login test"
+    assert sample_test() == "OK"
+
+@pytest.mark.reporting
+def test_issue_with_name(monkeypatch):
+    captured = {}
+
+    def fake_issue(url, name=None):
+        captured["url"] = url
+        captured["name"] = name
+
+        def decorator(fn):
+            return fn
+
+        return decorator
+
+    monkeypatch.setattr(allure_tools.allure, "issue", fake_issue)
+
+    @issue("https://jira.example.com/browse/QA-1", name="Login test")
+    def sample_test():
+        return "OK"
+
+    assert captured["url"] == "https://jira.example.com/browse/QA-1"
+    assert captured["name"] == "Login test"
+    assert sample_test() == "OK"   
 
 @pytest.mark.reporting
 def test_import_error_without_allure(monkeypatch):

@@ -37,6 +37,7 @@ selenium = [
     "selenium>=4.0",
 ]
 [tool.pytest.ini_options]
+junit_family = "legacy"
 markers = [
     "smoke: fast basic checks of lab_fw helpers",
     "regression: broader lab_fw checks",

@@ -688,9 +688,73 @@ allure serve allure-results
 
 ### Связь с N2
 
-Feature/epic в Allure — задел под связку с **TestRail** (milestone, case id) в фазе **N2**.
+Feature/epic в Allure — задел под **TestRail** и Jira; подробности — [Lab N2](#lab-n2--jira--testrail-trial).
 
 **Главная идея N1:** отчёт строится через **слой фреймворка**; метаданные (env, categories) автоматизируются; CI отдаёт **полный** snapshot прогона в artifact.
+
+## Lab N2 — Jira + TestRail (trial)
+
+### Цель
+
+Связать **pytest → Allure → TestRail → Jira**: у каждого autotest есть официальный кейс в TestRail и задача в Jira; трассируемость видна в отчёте и в test management.
+
+### Карта соответствий (API Client)
+
+| TestRail | pytest (node id) | Allure |
+|----------|------------------|--------|
+| **C1** — GET /users returns 200 | `tests.test_api_client#test_get_ok_with_mock_transport` | `@testcase(…/cases/view/1)`, `@feature("API Client")` |
+| **C2** — Connection error → ApiError | `tests.test_api_client#test_request_http_error_becomes_api_error` | `@testcase(…/cases/view/2)`, `@severity(CRITICAL)` |
+| **Jira KAN-4** — Connect pytest with TestRail | оба теста | `@issue(…/browse/KAN-4)` |
+
+В TestRail у кейсов **C1/C2**: Type **Automated**, **Is Automated: Yes**, **References** = pytest node id + `Jira KAN-4`. Секция suite: **API Client**.
+
+### Что добавлено в репо
+
+| Компонент | Назначение |
+|-----------|------------|
+| `lab_fw.reporting` | декораторы **`testcase(url, name=…)`**, **`issue(url, name=…)`** (no-op без allure) |
+| `tests/test_reporting.py` | unit-тесты декораторов (маркер `reporting`) |
+| `tests/test_api_client.py` | `@testcase`, `@issue`, `record_property("test_id", "C1"/"C2")` для trcli |
+| `scripts/upload_testrail.sh` | опционально: загрузка JUnit в TestRail через **trcli** (нужен `.env`) |
+
+### Allure (обязательная часть N2)
+
+```bash
+pytest tests/test_api_client.py -q --alluredir=allure-results
+allure serve allure-results
+```
+
+В UI: **Behaviors → API Client**; у теста **Links** — TestRail (TMS) и Jira.
+
+Декораторы вешай через `lab_fw.reporting`, не `import allure` в тестах.
+
+### TestRail run (опционально, trcli)
+
+1. JUnit с property `test_id` (**C1**, **C2** — с префиксом **C**, как в UI TestRail):
+
+```bash
+pytest tests/test_api_client.py --junitxml=testrail-results.xml
+```
+
+2. В корне репо `.env` (в git не коммитится): `TESTRAIL_URL`, `TESTRAIL_EMAIL`, `TESTRAIL_API_KEY`.
+
+3. [TestRail CLI](https://github.com/gurock/trcli) + `bash scripts/upload_testrail.sh` → test run (например «N2 pytest API client results»).
+
+`@testcase` в Allure **не** создаёт run в TestRail — только ссылки в отчёте. Run даёт **trcli** или ручной прогон в UI.
+
+**Подсказка UI:** на странице run снимай фильтр **Assigned To**, если список пустой, а сводка показывает Passed.
+
+### Jira
+
+Задача **KAN-4** (проект **HP QA Junior Prep**): комментарий с итогом + скрин Allure → **Done**. Описание задачи не переписывай — критерии приёмки остаются в Description.
+
+### Критерий «лаба сделана»
+
+- В Allure у mapped тестов есть **Links** на TestRail и Jira.
+- В TestRail кейсы согласованы с pytest (References, Automated).
+- `pytest tests/test_api_client.py -q` и `pytest -m reporting -q` — зелёные.
+
+**Главная идея N2:** две «правды» согласованы — **код реально гоняется** (pytest), **процесс знает кейс и задачу** (TestRail + Jira + Allure links). Полная автосинхронизация TR ↔ git — отдельная тема (trcli/API); для mid достаточно явных id и документации.
 
 ## Allure (кратко)
 
@@ -699,7 +763,7 @@ pytest -q --alluredir=allure-results
 allure serve allure-results
 ```
 
-Подробнее — [Lab N1](#lab-n1--allure-analytics-hygiene) и [Reporting](src/lab_fw/reporting/README.md).
+Подробнее — [Lab N1](#lab-n1--allure-analytics-hygiene), [Lab N2](#lab-n2--jira--testrail-trial) и [Reporting](src/lab_fw/reporting/README.md).
 
 В Actions artifact `allure-results` загружается с `if: always()` (workflow **tests** и **CI**).
 

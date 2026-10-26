@@ -24,10 +24,15 @@ pip install -e ".[dev]"
 | `@title(value)` | заголовок теста в отчёте |
 | `@description(value)` | описание |
 | `@severity(SeverityLevel.*)` | severity (enum `SeverityLevel`) |
+| `@testcase(url, name=…)` | ссылка TMS → TestRail case (Lab N2) |
+| `@issue(url, name=…)` | ссылка → Jira issue (Lab N2) |
 
 ```python
 from lab_fw.reporting import step, attach_json, feature, severity, SeverityLevel
+from lab_fw.reporting import testcase, issue
 
+@issue("https://example.atlassian.net/browse/QA-1")
+@testcase("https://example.testrail.io/index.php?/cases/view/1", name="C1")
 @feature("API Client")
 @severity(SeverityLevel.CRITICAL)
 def test_example():
@@ -54,6 +59,10 @@ allure serve allure-results
 ```
 
 Папки `allure-results/` и `allure-report/` в `.gitignore`.
+
+## Test management (Lab N2)
+
+При `--alluredir` декораторы `testcase` / `issue` попадают в **Links** отчёта Allure. Обратная связь в TestRail — поле **References** на кейсе (pytest node id). Загрузка run через **trcli** — см. [Lab N2](../../../README.md#lab-n2--jira--testrail-trial) в корневом README.
 
 ## Тесты слоя
 

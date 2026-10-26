@@ -24,10 +24,15 @@ pip install -e ".[dev]"
 | `@title(value)` | test title in the report |
 | `@description(value)` | description |
 | `@severity(SeverityLevel.*)` | severity (`SeverityLevel` enum) |
+| `@testcase(url, name=…)` | TMS link → TestRail case (Lab N2) |
+| `@issue(url, name=…)` | link → Jira issue (Lab N2) |
 
 ```python
 from lab_fw.reporting import step, attach_json, feature, severity, SeverityLevel
+from lab_fw.reporting import testcase, issue
 
+@issue("https://example.atlassian.net/browse/QA-1")
+@testcase("https://example.testrail.io/index.php?/cases/view/1", name="C1")
 @feature("API Client")
 @severity(SeverityLevel.CRITICAL)
 def test_example():
@@ -54,6 +59,10 @@ allure serve allure-results
 ```
 
 `allure-results/` and `allure-report/` are in `.gitignore`.
+
+## Test management (Lab N2)
+
+With `--alluredir`, `testcase` / `issue` appear under **Links** in Allure. Back-link in TestRail: **References** on the case (pytest node id). Optional run upload via **trcli** — see [Lab N2](../../../README.en.md#lab-n2--jira--testrail-trial) in the root README.
 
 ## Layer tests
 
