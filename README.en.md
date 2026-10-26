@@ -680,67 +680,133 @@ Allure feature/epic feeds **TestRail** and Jira mapping — see [Lab N2](#lab-n2
 
 ## Lab N2 — Jira + TestRail (trial)
 
-### Goal
+After [Lab N1](#lab-n1--allure-analytics-hygiene), Allure already groups tests (`feature`, `severity`, environment). Lab N2 explains how to tie the **same pytest run** to a **case catalog** (TestRail) and **work items** (Jira), so reports and TMS stay navigable.
 
-Connect **pytest → Allure → TestRail → Jira**: each autotest maps to a TestRail case and a Jira issue; traceability is visible in the report and in test management.
+### Why four systems
 
-### Mapping (API Client)
+| System | Role |
+|--------|------|
+| **pytest** | Runs code; pass/fail is the source of truth for execution. |
+| **Allure** | Human-readable report: steps, attachments, **Links** to external tools. |
+| **TestRail** | **Test cases**, suites, milestones, and **test runs**. |
+| **Jira** | **Team work** (stories, tasks, bugs) and discussion history. |
 
-| TestRail | pytest (node id) | Allure |
-|----------|------------------|--------|
-| **C1** — GET /users returns 200 | `tests.test_api_client#test_get_ok_with_mock_transport` | `@testcase(…/cases/view/1)`, `@feature("API Client")` |
-| **C2** — Connection error → ApiError | `tests.test_api_client#test_request_http_error_becomes_api_error` | `@testcase(…/cases/view/2)`, `@severity(CRITICAL)` |
-| **Jira KAN-4** — Connect pytest with TestRail | both tests | `@issue(…/browse/KAN-4)` |
+An autotest in Git is not the whole story: TestRail holds “what we verify”, Jira holds “why we did it”, Allure shows “what the last run did”.
 
-In TestRail for **C1/C2**: Type **Automated**, **Is Automated: Yes**, **References** = pytest node id + `Jira KAN-4`. Suite section: **API Client**.
+### Two separate linking channels
 
-### Repo changes
+People often mix these up — they are **different**:
 
-| Piece | Purpose |
-|-------|---------|
-| `lab_fw.reporting` | **`testcase(url, name=…)`**, **`issue(url, name=…)`** (no-op without allure) |
-| `tests/test_reporting.py` | decorator unit tests (`@pytest.mark.reporting`) |
-| `tests/test_api_client.py` | `@testcase`, `@issue`, `record_property("test_id", "C1"/"C2")` for trcli |
-| `scripts/upload_testrail.sh` | optional: upload JUnit to TestRail via **trcli** (requires `.env`) |
+```text
+  (A) Allure links     pytest --alluredir  →  @testcase / @issue  →  Links in the report
+  (B) TestRail run     pytest --junitxml   →  trcli parse_junit   →  Run + statuses in TR
+```
 
-### Allure (required for N2)
+- **(A)** does not write results into TestRail; it only adds TMS / Issue links in Allure.
+- **(B)** does not add Allure links; it uploads pass/fail into a **Test Run** (e.g. “N2 pytest API client results”).
+- **References** on a TestRail case is the manual back-link “this case = this pytest node id”.
+
+You can use both; one is enough if you know the limits.
+
+### Code: `lab_fw.reporting` decorators
+
+Lab N1 used `@feature` / `@severity`. Lab N2 adds:
+
+| Decorator | Allure | Typical URL |
+|-----------|--------|-------------|
+| `@testcase(url, name=…)` | Link → TestRail | `https://<instance>.testrail.io/index.php?/cases/view/<id>` |
+| `@issue(url, name=…)` | Link → Jira | `https://<site>.atlassian.net/browse/<KEY>-<n>` |
+
+Without `allure-pytest`, decorators are **no-ops**. Example from `tests/test_api_client.py`:
+
+```python
+from lab_fw.reporting import feature, severity, SeverityLevel, testcase, issue
+
+@issue("https://andrzejszamborski08.atlassian.net/browse/KAN-4")
+@testcase("https://andrzejszamborski.testrail.io/index.php?/cases/view/1", name="C1")
+@feature("API Client")
+def test_get_ok_with_mock_transport(record_property):
+    record_property("test_id", "C1")
+    ...
+```
+
+Prefer **`/browse/KAN-4`** in `@issue`, not a board URL with query parameters.
+
+Decorator unit tests: `pytest -m reporting -q` (`tests/test_reporting.py`).
+
+### Example mapping (HP QA Junior Prep)
+
+| TestRail case | pytest node id | Allure decorators |
+|---------------|----------------|-------------------|
+| **C1** — GET /users returns 200 | `tests.test_api_client#test_get_ok_with_mock_transport` | `@testcase(…/view/1)`, `@feature("API Client")` |
+| **C2** — Connection error → ApiError | `tests.test_api_client#test_request_http_error_becomes_api_error` | `@testcase(…/view/2)`, `@severity(CRITICAL)` |
+| Jira **KAN-4** (link pytest ↔ TestRail) | both tests | `@issue(…/browse/KAN-4)` |
+
+### TestRail: case fields
+
+In the suite (**API Client** section), for each case:
+
+- **Type:** Automated · **Is Automated:** Yes  
+- **References:** pytest node id and optional Jira key, e.g.  
+  `tests.test_api_client#test_get_ok_with_mock_transport, Jira KAN-4`  
+- **Steps / Expected:** mock API scenario (as in your C1/C2)
+
+The id in the URL (`view/1`) is the **global case id**, not the row index in the suite tree.
+
+### Allure: viewing links
 
 ```bash
 pytest tests/test_api_client.py -q --alluredir=allure-results
 allure serve allure-results
 ```
 
-In the UI: **Behaviors → API Client**; per test **Links** → TestRail (TMS) and Jira.
+- **Behaviors → API Client** — `@feature` grouping.  
+- Test card → **Links** — open TestRail and Jira.
 
-Use `lab_fw.reporting` decorators, not raw `import allure` in tests.
+Reporting layer details: [Reporting / Allure](src/lab_fw/reporting/README.en.md).
 
-### TestRail run (optional, trcli)
+### TestRail CLI (channel B)
 
-1. JUnit with property `test_id` (**C1**, **C2** — include the **C** prefix as in TestRail UI):
+1. Generate JUnit (`test_id` property must be **`C1`**, **`C2`** — with the **C** prefix as in TestRail):
 
 ```bash
 pytest tests/test_api_client.py --junitxml=testrail-results.xml
 ```
 
-2. Repo-root `.env` (not committed): `TESTRAIL_URL`, `TESTRAIL_EMAIL`, `TESTRAIL_API_KEY`.
+2. Secrets in repo-root `.env` (gitignored):  
+   `TESTRAIL_URL`, `TESTRAIL_EMAIL`, `TESTRAIL_API_KEY`.
 
-3. [TestRail CLI](https://github.com/gurock/trcli) + `bash scripts/upload_testrail.sh` → test run (e.g. “N2 pytest API client results”).
+3. Install [TestRail CLI](https://github.com/gurock/trcli), then:
 
-`@testcase` in Allure does **not** push results to TestRail — only report links. Runs come from **trcli** or a manual TestRail run.
+```bash
+bash scripts/upload_testrail.sh
+```
 
-**UI tip:** on the run page, clear the **Assigned To** filter if the list is empty but the summary shows Passed.
+The script runs `trcli parse_junit` with `--case-matcher property` and `--suite-id 1` (adjust for your project).
 
-### Jira
+### TestRail UI: common confusion
 
-Issue **KAN-4** (project **HP QA Junior Prep**): comment with evidence + Allure screenshot → **Done**. Keep acceptance criteria in Description.
+| Symptom | Likely cause |
+|---------|----------------|
+| Summary **2 Passed**, list **No tests found** | **Assigned To** filter active — clear it or choose **All**. |
+| trcli does not match cases | JUnit `test_id` should be `C1`, not `1`. |
+| Jira “Select organization” does nothing | Pop-up blocker; workaround: [GitHub App Jira](https://github.com/apps/jira/installations/new) and select repo `hp-qa-junior-prep`. |
 
-### Done when
+### Jira + GitHub (separate from pytest)
 
-- Allure **Links** show TestRail and Jira for mapped tests.
-- TestRail cases match pytest (References, Automated).
-- `pytest tests/test_api_client.py -q` and `pytest -m reporting -q` are green.
+**GitHub for Atlassian** links **commits and PRs** when the issue key appears (`KAN-4` in message/title/branch) — **Development** panel on the issue. That does **not** replace `@issue` in Allure; the decorator only adds a link in the report.
 
-**N2 takeaway:** **execution** (pytest) and **process** (TestRail case + Jira issue) stay aligned via Allure links and References. Full TR ↔ git sync is a separate topic (trcli/API); mid level needs explicit ids and docs.
+### Repository files (N2)
+
+| Path | Meaning |
+|------|---------|
+| `src/lab_fw/reporting/allure_tools.py` | `testcase`, `issue`, shared `decor_allure` |
+| `tests/test_api_client.py` | live API Client example with links |
+| `tests/test_reporting.py` | decorator tests |
+| `scripts/upload_testrail.sh` | trcli wrapper |
+| `pyproject.toml` | `python_functions = ["test_*"]` so pytest does not collect imported `testcase` as a test |
+
+`testrail-results.xml` and local allure folders are gitignored.
 
 ## Allure (short)
 

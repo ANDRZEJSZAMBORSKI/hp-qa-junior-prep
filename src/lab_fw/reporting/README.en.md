@@ -60,9 +60,9 @@ allure serve allure-results
 
 `allure-results/` and `allure-report/` are in `.gitignore`.
 
-## Test management (Lab N2)
+## TestRail and Jira (Lab N2)
 
-With `--alluredir`, `testcase` / `issue` appear under **Links** in Allure. Back-link in TestRail: **References** on the case (pytest node id). Optional run upload via **trcli** — see [Lab N2](../../../README.en.md#lab-n2--jira--testrail-trial) in the root README.
+With `--alluredir`, `testcase` / `issue` show under **Links** in Allure. In TestRail, **References** on a case points to the pytest node id; run upload uses **trcli** (channel B). Details: [Lab N2](../../../README.en.md#lab-n2--jira--testrail-trial) in the root README.
 
 ## Layer tests
 

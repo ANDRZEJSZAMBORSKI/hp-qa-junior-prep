@@ -60,9 +60,9 @@ allure serve allure-results
 
 Папки `allure-results/` и `allure-report/` в `.gitignore`.
 
-## Test management (Lab N2)
+## TestRail и Jira (Lab N2)
 
-При `--alluredir` декораторы `testcase` / `issue` попадают в **Links** отчёта Allure. Обратная связь в TestRail — поле **References** на кейсе (pytest node id). Загрузка run через **trcli** — см. [Lab N2](../../../README.md#lab-n2--jira--testrail-trial) в корневом README.
+При `--alluredir` декораторы `testcase` / `issue` попадают в **Links** отчёта Allure. В TestRail на кейсе поле **References** связывает case с pytest node id; загрузка run — через **trcli** (канал B). Подробно: [Lab N2](../../../README.md#lab-n2--jira--testrail-trial) в корневом README.
 
 ## Тесты слоя
 

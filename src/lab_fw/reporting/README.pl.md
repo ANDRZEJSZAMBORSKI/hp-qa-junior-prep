@@ -60,9 +60,9 @@ allure serve allure-results
 
 Katalogi `allure-results/` i `allure-report/` są w `.gitignore`.
 
-## Test management (Lab N2)
+## TestRail i Jira (Lab N2)
 
-Przy `--alluredir` dekoratory `testcase` / `issue` trafiają do **Links** w Allure. Powiązanie w TestRail — pole **References** na case (node id pytest). Upload runu przez **trcli** — [Lab N2](../../../README.pl.md#lab-n2--jira--testrail-trial) w README głównym.
+Przy `--alluredir` dekoratory `testcase` / `issue` trafiają do **Links** w Allure. W TestRail pole **References** wiąże case z node id pytest; upload runu — **trcli** (kanał B). Szczegóły: [Lab N2](../../../README.pl.md#lab-n2--jira--testrail-trial) w README głównym.
 
 ## Testy warstwy
 
