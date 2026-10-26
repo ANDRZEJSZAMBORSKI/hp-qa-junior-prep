@@ -38,6 +38,7 @@ selenium = [
 ]
 [tool.pytest.ini_options]
 junit_family = "legacy"
+python_functions = ["test_*"]
 markers = [
     "smoke: fast basic checks of lab_fw helpers",
     "regression: broader lab_fw checks",
