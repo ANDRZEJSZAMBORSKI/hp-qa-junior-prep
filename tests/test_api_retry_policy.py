@@ -6,6 +6,7 @@ from lab_fw.core.errors import ApiError, HttpStatusError
 from lab_fw.api.client import ApiClient, ensure_success
 from lab_fw.core.retry import retry_call
 
+@pytest.mark.api
 @pytest.mark.parametrize(
     "status",
     [429, 503],
@@ -26,7 +27,7 @@ def test_should_retry_get_retryable_status(status):
 
     assert should_retry(exc) is True
 
-
+@pytest.mark.api
 @pytest.mark.parametrize(
     "status",
     [400, 401, 403, 404, 422, 500],
@@ -54,7 +55,7 @@ def test_should_not_retry_get_non_retryable_status(status):
 
     assert should_retry(exc) is False
 
-
+@pytest.mark.api
 @pytest.mark.parametrize(
     "error_type",
     [
@@ -77,7 +78,7 @@ def test_should_retry_get_transport_error(error_type):
 
     assert should_retry(exc) is True
 
-
+@pytest.mark.api
 @pytest.mark.parametrize(
     "error_type",
     [
@@ -100,7 +101,7 @@ def test_should_not_retry_post_transport_error(error_type):
 
     assert should_retry(exc) is False
 
-
+@pytest.mark.api
 @pytest.mark.parametrize(
     "status",
     [429, 503],
@@ -121,13 +122,13 @@ def test_should_not_retry_post_status(status):
 
     assert should_retry(exc) is False
 
-
+@pytest.mark.api
 def test_should_not_retry_api_error_without_http_cause():
     exc = ApiError("unknown API error")
 
     assert should_retry(exc) is False
 
-
+@pytest.mark.api
 def test_should_not_retry_http_status_error_without_response():
     exc = HttpStatusError(
         "invalid status error",

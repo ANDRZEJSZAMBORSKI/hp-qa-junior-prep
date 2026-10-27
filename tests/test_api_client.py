@@ -10,6 +10,7 @@ from lab_fw.reporting import SeverityLevel
 from lab_fw.reporting import testcase as tstrail_case
 from lab_fw.reporting import issue
 
+@pytest.mark.api
 @issue("https://andrzejszamborski08.atlassian.net/browse/KAN-4")
 @tstrail_case("https://andrzejszamborski.testrail.io/index.php?/cases/view/1", name="C1")
 @feature("API Client")
@@ -33,6 +34,7 @@ def test_get_ok_with_mock_transport(record_property):
     assert response.status_code == 200
     assert response.json() == {"items": [1, 2]}
 
+@pytest.mark.api
 @issue("https://andrzejszamborski08.atlassian.net/browse/KAN-4")
 @tstrail_case("https://andrzejszamborski.testrail.io/index.php?/cases/view/2", name="C2")
 @feature("API Client")

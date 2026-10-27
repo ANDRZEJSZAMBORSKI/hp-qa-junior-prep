@@ -21,6 +21,8 @@ class BadClient:
     def close(self):
         pass
 
+@pytest.mark.smoke
+@pytest.mark.api
 def test_HttpClientProtocol_isinstance():
     assert isinstance(GoodClient(), HttpClientProtocol)
     assert not isinstance(BadClient(), HttpClientProtocol)
@@ -36,10 +38,14 @@ class DummyPage(BasePage):
     def open(self):
         return self.path
 
+@pytest.mark.smoke
+@pytest.mark.api
 def test_BasePage_cannot_be_instantiated():
     with pytest.raises(TypeError):
         BasePage()
 
+@pytest.mark.smoke
+@pytest.mark.api
 def test_DummyPage():
     page = DummyPage()
 

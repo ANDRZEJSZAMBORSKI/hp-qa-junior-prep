@@ -2,6 +2,7 @@ import pytest
 
 pytest_plugins = ["pytester"]
 
+@pytest.mark.reporting
 def test_failure_is_logged(pytester, caplog):
     test_file = pytester.makepyfile(
                                         """
@@ -17,6 +18,7 @@ def test_failure_is_logged(pytester, caplog):
     assert "FAILED" in caplog.text
     assert "test_failure_is_logged.py::test_failure" in caplog.text
 
+@pytest.mark.reporting
 def test_failure_writes_artifact(pytester):
     test_file = pytester.makepyfile(
                                         """
@@ -45,7 +47,7 @@ def test_failure_writes_artifact(pytester):
     assert "test_failure_writes_artifact.py::test_failure" in content
     assert "AssertionError" in content
 
-
+@pytest.mark.reporting
 def test_failure_not_writes_artifact(pytester):
     test_file = pytester.makepyfile(
                                         """
@@ -63,6 +65,7 @@ def test_failure_not_writes_artifact(pytester):
     assert result.ret != 0
     assert not artifacts_dir.exists()
 
+@pytest.mark.reporting
 def test_pass_does_not_write_artifact(pytester):
 
     test_file = pytester.makepyfile(

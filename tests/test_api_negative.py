@@ -939,6 +939,7 @@ def test_retry_no_retry_retry(settings, status):
     assert isinstance(exc_info.value, HttpStatusError)
     assert exc_info.type is HttpStatusError
 
+@pytest.mark.api
 @pytest.mark.parametrize(
     "error_type",
     [httpx.ConnectError, httpx.ReadTimeout],
@@ -1006,6 +1007,7 @@ def test_retry_transport_error(settings, error_type):
     assert isinstance(exc_info.value, ApiError)
     assert exc_info.type is ApiError
 
+@pytest.mark.api
 @pytest.mark.parametrize(
     "error_type",
     [httpx.ConnectError, httpx.ReadTimeout],
