@@ -81,6 +81,11 @@ HEADINGS: dict[str, dict[str, str]] = {
         "en": "## N2 — Jira and TestRail",
         "pl": "## N2 — Jira i TestRail",
     },
+    "n3": {
+        "ru": "## N3 — тестирование на основе рисков (smoke и полная регрессия)",
+        "en": "## N3 — risk-based testing (smoke and full regression)",
+        "pl": "## N3 — testy oparte na ryzyku (smoke i pełna regresja)",
+    },
     "allure_short": {
         "ru": "## Allure (кратко)",
         "en": "## Allure (short)",
@@ -121,6 +126,7 @@ def load_block(key: str, lang: str) -> str:
 def insert_after_heading(content: str, heading: str, key: str, block: str) -> str:
     marker = MARKER.format(key=key)
     if marker in content:
+        # Do not replace until next ## — long chapter bodies live outside the block.
         return content
     idx = content.find(heading)
     if idx == -1:
@@ -134,9 +140,13 @@ def insert_after_heading(content: str, heading: str, key: str, block: str) -> st
 
 def apply_preamble(content: str, lang: str) -> str:
     marker = "<!-- readme-preamble -->"
-    if marker in content:
-        return content
     preamble = load_block("00_preamble", lang)
+    if marker in content:
+        start = content.find(marker)
+        rest = content[start + len(marker) :]
+        m = re.search(r"\n## ", rest)
+        end = start + len(marker) + (m.start() if m else len(rest))
+        return content[:start] + f"{marker}\n\n{preamble.strip()}\n\n" + content[end:].lstrip("\n")
     old = INTRO_OLD[lang]
     if old not in content:
         raise ValueError(f"Intro line missing for {lang}")

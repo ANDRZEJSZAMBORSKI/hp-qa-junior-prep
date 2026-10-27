@@ -37,9 +37,9 @@
 | **I1–I4** | API, моки, негативы, диагностика | `tests/mocks_lab/`, `tests/test_compose_api.py`, `src/lab_fw/api/` |
 | **L1–L3** | Распределённые системы, очередь/worker, расследование | `src/distributed_lab/`, `tests/distributed_lab/` |
 | **M1–M2** | xdist, изоляция, Selenium Grid, UI в Docker | `tests/parallel_lab/`, `tests/conftest.py`, Compose profiles |
-| **N1–N2** | Allure, TestRail, Jira | `src/lab_fw/reporting/`, `tests/test_api_client.py`, `scripts/upload_testrail.sh` |
+| **N1–N3** | Allure, TestRail, Jira, risk-based наборы | `src/lab_fw/reporting/`, `tests/test_api_client.py`, `pyproject.toml` (markers) |
 
-Рекомендуемый порядок чтения: **Быстрый старт → Структура → I1–I4 → L1 → L2 → L3 → M1 → M2 → N1 → N2**. Разделы Docker и GitHub Actions удобно держать под рукой при любом прогоне.
+Рекомендуемый порядок чтения: **Быстрый старт → Структура → I1–I4 → L1 → L2 → L3 → M1 → M2 → N1 → N2 → N3**. Разделы Docker и GitHub Actions удобно держать под рукой при любом прогоне.
 
 ### Содержание
 
@@ -57,8 +57,9 @@
 12. [M2 — Grid и UI](#m2--удалённый-браузер-selenium-grid-и-ui-в-docker)
 13. [N1 — Allure](#n1--отчёты-allure)
 14. [N2 — TestRail и Jira](#n2--jira--testrail)
-15. [Allure (кратко)](#allure-кратко)
-16. [Документация модулей](#документация-модулей)
+15. [N3 — risk-based (smoke / full)](#n3--тестирование-на-основе-рисков-smoke-и-полная-регрессия)
+16. [Allure (кратко)](#allure-кратко)
+17. [Документация модулей](#документация-модулей)
 
 ### Как читать каждый раздел
 
@@ -1333,6 +1334,137 @@ bash scripts/upload_testrail.sh
 | `pyproject.toml` | `python_functions = ["test_*"]` — чтобы pytest не собирал импорт `testcase` как тест |
 
 `testrail-results.xml` и локальные папки allure — в `.gitignore`, в git не коммитятся.
+
+## N3 — тестирование на основе рисков (smoke и полная регрессия)
+
+<!-- readme-chapter:n3 -->
+### О разделе
+
+**N3** описывает, как **разделить коллекцию pytest на осмысленные наборы** и выбирать объём прогона по **риску**, **области изменений** и **стоимости** (время, инфраструктура, flakiness). Маркеры в `pyproject.toml` — основной механизм; workflow GitHub Actions и Docker CMD задают **политику по умолчанию** для CI.
+
+Связанные главы: [Маркеры pytest](#маркеры-pytest), [GitHub Actions](#github-actions), [M1](#m1--параллельное-выполнение-и-изоляция-ресурсов), [M2](#m2--удалённый-браузер-selenium-grid-и-ui-в-docker), [N1](#n1--отчёты-allure), [N2](#n2--jira--testrail).
+
+### Зачем risk-based testing
+
+**Risk-based testing** — не «меньше тестов ради экономии», а **явный выбор**: что должно упасть первым, если сломалась сборка, конфиг, API-контракт, UI или интegrация с MockServer. В этом репозитории:
+
+- **Smoke** — минимальный сигнал «каркас жив» (настройки, базовые абстракции, часть UI smoke).
+- **Targeted regression** — маркеры `api`, `mocks`, `distributed_lab`, `config`, … по затронутому коду.
+- **CI default** — быстрый прогон без браузера и без Compose на runner без `mock-api`.
+- **Full collection** — вся обнаруженная коллекция (локально, nightly, pre-release, Docker CMD).
+
+Один тест может иметь **несколько маркеров**; `--collect-only` считает вхождения по маркеру, суммы по таблице **не** равны числу уникальных тестов.
+
+### Инвентаризация: `--collect-only`
+
+Команды ниже **собирают** node id тестов и **не выполняют** их. Числа в таблице получены для текущего дерева репозитория (`400` тестов в корне `tests/`). После добавления тестов пересчитайте:
+
+```bash
+python -m pytest --collect-only -q
+python -m pytest --collect-only -q -m smoke
+```
+
+### Наборы по маркерам
+
+| Набор | Собрано | Что проверяет | Команда сбора |
+|-------|---------|---------------|---------------|
+| **Smoke** | 17 | Базовые проверки компонентов: settings, пользователи, абстракции, таймауты, отдельные UI smoke | `python -m pytest --collect-only -q -m smoke` |
+| **Regression** | 4 | Роли пользователей и общий тест с маркером `regression` | `python -m pytest --collect-only -q -m regression` |
+| **User** | 5 | Создание пользователя по умолчанию, переопределения, комбинации ролей | `python -m pytest --collect-only -q -m user` |
+| **Config** | 11 | Defaults settings, env, таймауты, URL Selenium Grid | `python -m pytest --collect-only -q -m config` |
+| **Mocks** | 50 | unittest.mock, patch, spy, HTTP mock, retry, reporting в mocks_lab | `python -m pytest --collect-only -q -m mocks` |
+| **Pure mocks** | 10 | Patch/mock/retry без httpx transport suite | `python -m pytest --collect-only -q -m mocks_pure` |
+| **HTTPX mocks** | 36 | MockTransport: GET/POST, JSON, transport errors, retry, attachments | `python -m pytest --collect-only -q -m mocks_httpx` |
+| **API** | 97 | Auth, tokens, ApiError, retry policy, schemas, ApiClient | `python -m pytest --collect-only -q -m api` |
+| **UI** | 34 | Playwright: login, поля, waits, URL, timeouts | `python -m pytest --collect-only -q -m ui` |
+| **Selenium** | 47 | Selenium: login, waits, flash, local/remote Grid | `python -m pytest --collect-only -q -m selenium` |
+| **Compose** | 4 | Mock API в Docker: health, users, 401, timeout | `python -m pytest --collect-only -q -m compose` |
+| **Distributed lab** | 85 | Queue/worker, retry, timeout, deadline, idempotency, L3 | `python -m pytest --collect-only -q -m distributed_lab` |
+| **Parallel lab** | 10 | xdist, shared files, FileLock, race (M1) | `python -m pytest --collect-only -q -m parallel_lab` |
+| **Serial** | 12 | Последовательные сценарии, scope фикстур, браузер | `python -m pytest --collect-only -q -m serial` |
+| **Reporting** | 51 | Allure steps, severity, testcase/issue links | `python -m pytest --collect-only -q -m reporting` |
+
+### Браузерные поднаборы (UI × serial)
+
+| Поднабор | Собрано | Смысл | Команда сбора |
+|----------|---------|--------|---------------|
+| Playwright non-serial | 26 | UI без `serial`, параллельно при `-n` | `python -m pytest --collect-only -q -m "ui and not selenium and not serial"` |
+| Playwright serial | 8 | UI с общим module/session state | `python -m pytest --collect-only -q -m "ui and not selenium and serial"` |
+| Selenium non-serial | 43 | Selenium без `serial` | `python -m pytest --collect-only -q -m "selenium and not serial"` |
+| Selenium serial | 4 | Selenium `@serial` | `python -m pytest --collect-only -q -m "selenium and serial"` |
+
+Маркер **`serial`** — сигнал планировщику: не смешивать с `-n auto` без `--dist loadgroup` и осознанной группы (см. M1/M2).
+
+### CI-набор (GitHub Actions **tests**)
+
+| Показатель | Значение |
+|------------|----------|
+| Собрано | **315** |
+| Выражение | `-m "not ui and not selenium and not compose"` |
+| Исключено | Браузер, живой MockServer Compose |
+| Остаётся | API, mocks, config, reporting, distributed_lab, parallel_lab, … |
+
+```bash
+python -m pytest --collect-only -q -m "not ui and not selenium and not compose"
+```
+
+Workflow **tests** запускает этот фильтр с `-n auto` и `--alluredir`. Workflow **CI** / образ `tests` в Compose добавляет **compose** и профили **selenium** / **playwright** (см. [Docker](#docker), [M2](#m2--удалённый-браузер-selenium-grid-и-ui-в-docker)).
+
+### Полная коллекция
+
+| Показатель | Значение |
+|------------|----------|
+| Всего собрано | **400** |
+| Команда | `python -m pytest --collect-only -q` |
+
+Полный прогон — **максимальная** проверка репозитория; для ежедого push обычно избыточен по времени и инфраструктуре.
+
+### Smoke vs regression vs full-suite
+
+| Подход | Роль | В проекте |
+|--------|------|-----------|
+| **Smoke** | Быстрый сигнал после изменения | `-m smoke` (17 тестов) |
+| **Regression (узкая)** | Область, которую затронул diff | `-m api`, `-m mocks_httpx`, `-m distributed_lab`, … |
+| **CI regression (широкая)** | Стабильный gate без UI/Docker | 315 тестов, фильтр **tests** |
+| **Full suite** | Полное покрытие коллекции | все **400**, + отдельно UI/selenium/compose при необходимости |
+
+**Severity** и **feature** в Allure (N1) и case priority в TestRail (N2) дополняют маркеры: критичный autotest может входить и в smoke, и в `-m api`.
+
+### Рекомендуемая политика запусков
+
+| Событие | Набор | Пример команды | Какой риск закрываем |
+|---------|--------|----------------|----------------------|
+| Локальная проверка после правки | По области | `pytest tests/mocks_lab -m mocks_httpx -q` | Сломали HTTP mock / ApiClient |
+| Быстрый gate | Smoke | `pytest -m smoke -q` | «Фреймворк вообще жив» |
+| Push / PR (как CI) | CI-315 | `pytest -m "not ui and not selenium and not compose" -q -n auto` | Регресс API/L2/L3/mocks без Grid |
+| После изменений UI | Playwright subset | `pytest -m "ui and not serial" -q` | Браузерные сценарии |
+| Перед релизом / nightly | Full + infra | `pytest -q` локально; `docker compose up … tests`; profiles M2 | Compose, Grid, полная коллекция |
+
+Политика в команде может ужесточать (например, обязательный `-m smoke` на каждый commit), но **граница CI** в этом репо уже зафиксирована в `.github/workflows/tests.yml`.
+
+### Запуск (не только сбор)
+
+```bash
+# Smoke — минуты, без Docker
+pytest -m smoke -q
+
+# CI-подобный прогон локально
+pytest -m "not ui and not selenium and not compose" -q -n auto
+
+# Compose (нужен mock-api)
+pytest -m compose -q
+
+# Distributed / parallel labs
+pytest tests/distributed_lab -m distributed_lab -q
+pytest tests/parallel_lab -m parallel_lab -n 2 -q
+```
+
+### Самопроверка
+
+1. `--collect-only` для smoke даёт **17**, для CI-выражения — **315**, всего — **400**.
+2. Можете объяснить, почему **distributed_lab** входит в CI-315, а **compose** — нет (in-process vs живой MockServer).
+3. Знаете, когда нужен **`serial`** для UI и почему его не смешивают с `-n auto` без группы.
+
 
 ## Allure (кратко)
 

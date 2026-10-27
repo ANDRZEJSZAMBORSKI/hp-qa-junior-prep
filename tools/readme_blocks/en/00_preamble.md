@@ -31,9 +31,9 @@ This document is both a **runbook** (commands, env vars, CI) and a **textbook** 
 | **I1–I4** | API, mocks, negatives, troubleshooting | `tests/mocks_lab/`, `tests/test_compose_api.py`, `src/lab_fw/api/` |
 | **L1–L3** | Distributed concepts, queue/worker, investigation | `src/distributed_lab/`, `tests/distributed_lab/` |
 | **M1–M2** | xdist, isolation, Selenium Grid, UI in Docker | `tests/parallel_lab/`, `tests/conftest.py`, Compose profiles |
-| **N1–N2** | Allure, TestRail, Jira | `src/lab_fw/reporting/`, `tests/test_api_client.py`, `scripts/upload_testrail.sh` |
+| **N1–N3** | Allure, TestRail, Jira, risk-based suites | `src/lab_fw/reporting/`, `tests/test_api_client.py`, `pyproject.toml` (markers) |
 
-Suggested reading order: **Quick start → Layout → I1–I4 → L1 → L2 → L3 → M1 → M2 → N1 → N2**. Keep **Docker** and **GitHub Actions** nearby for every run.
+Suggested reading order: **Quick start → Layout → I1–I4 → L1 → L2 → L3 → M1 → M2 → N1 → N2 → N3**. Keep **Docker** and **GitHub Actions** nearby for every run.
 
 ### Table of contents
 
@@ -51,8 +51,9 @@ Suggested reading order: **Quick start → Layout → I1–I4 → L1 → L2 → 
 12. [M2 — Grid and UI](#m2--remote-browser-selenium-grid-and-ui-in-docker)
 13. [N1 — Allure](#n1--allure-reporting)
 14. [N2 — TestRail and Jira](#n2--jira--testrail)
-15. [Allure quick reference](#allure-quick-reference)
-16. [Module documentation](#module-documentation)
+15. [N3 — risk-based (smoke / full)](#n3--risk-based-testing-smoke-and-full-regression)
+16. [Allure quick reference](#allure-quick-reference)
+17. [Module documentation](#module-documentation)
 
 ### How chapters are structured
 

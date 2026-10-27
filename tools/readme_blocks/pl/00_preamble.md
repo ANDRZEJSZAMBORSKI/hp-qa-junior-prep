@@ -31,9 +31,9 @@ Ten dokument to jednocześnie **instrukcja** (polecenia, env, CI) i **podręczni
 | **I1–I4** | API, mocki, negatywy, diagnostyka | `tests/mocks_lab/`, `tests/test_compose_api.py`, `src/lab_fw/api/` |
 | **L1–L3** | Systemy rozproszone, kolejka/worker, badanie | `src/distributed_lab/`, `tests/distributed_lab/` |
 | **M1–M2** | xdist, izolacja, Selenium Grid, UI w Dockerze | `tests/parallel_lab/`, `tests/conftest.py`, profile Compose |
-| **N1–N2** | Allure, TestRail, Jira | `src/lab_fw/reporting/`, `tests/test_api_client.py`, `scripts/upload_testrail.sh` |
+| **N1–N3** | Allure, TestRail, Jira, zestawy risk-based | `src/lab_fw/reporting/`, `tests/test_api_client.py`, `pyproject.toml` (markery) |
 
-Proponowana kolejność: **Szybki start → Struktura → I1–I4 → L1 → L2 → L3 → M1 → M2 → N1 → N2**. Sekcje **Docker** i **GitHub Actions** warto mieć pod ręką przy każdym uruchomieniu.
+Proponowana kolejność: **Szybki start → Struktura → I1–I4 → L1 → L2 → L3 → M1 → M2 → N1 → N2 → N3**. Sekcje **Docker** i **GitHub Actions** warto mieć pod ręką przy każdym uruchomieniu.
 
 ### Spis treści
 
@@ -51,8 +51,9 @@ Proponowana kolejność: **Szybki start → Struktura → I1–I4 → L1 → L2 
 12. [M2 — Grid i UI](#m2--zdalna-przeglądarka-selenium-grid-i-ui-w-dockerze)
 13. [N1 — Allure](#n1--raporty-allure)
 14. [N2 — TestRail i Jira](#n2--jira--i-testrail)
-15. [Allure (skrót)](#allure-skrót)
-16. [Dokumentacja modułów](#dokumentacja-modułów)
+15. [N3 — risk-based (smoke / full)](#n3--testy-oparte-na-ryzyku-smoke-i-pełna-regresja)
+16. [Allure (skrót)](#allure-skrót)
+17. [Dokumentacja modułów](#dokumentacja-modułów)
 
 ### Jak czytać rozdziały
 
