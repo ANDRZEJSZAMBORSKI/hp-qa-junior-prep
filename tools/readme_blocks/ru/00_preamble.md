@@ -32,8 +32,9 @@
 | **L1–L3** | Распределённые системы, очередь/worker, расследование | `src/distributed_lab/`, `tests/distributed_lab/` |
 | **M1–M2** | xdist, изоляция, Selenium Grid, UI в Docker | `tests/parallel_lab/`, `tests/conftest.py`, Compose profiles |
 | **N1–N3** | Allure, TestRail, Jira, risk-based наборы | `src/lab_fw/reporting/`, `tests/test_api_client.py`, `pyproject.toml` (markers) |
+| **J3** | Mock Device Inventory (cloud, DFU, heartbeat) | `src/device_lab/`, `tests/device_lab/` |
 
-Рекомендуемый порядок чтения: **Быстрый старт → Структура → I1–I4 → L1 → L2 → L3 → M1 → M2 → N1 → N2 → N3**. Разделы Docker и GitHub Actions удобно держать под рукой при любом прогоне.
+Рекомендуемый порядок чтения: **Быстрый старт → Структура → I1–I4 → L1 → L2 → L3 → M1 → M2 → N1 → N2 → N3 → J3**. Разделы Docker и GitHub Actions удобно держать под рукой при любом прогоне.
 
 ### Содержание
 
@@ -52,8 +53,9 @@
 13. [N1 — Allure](#n1--отчёты-allure)
 14. [N2 — TestRail и Jira](#n2--jira--testrail)
 15. [N3 — risk-based (smoke / full)](#n3--тестирование-на-основе-рисков-smoke-и-полная-регрессия)
-16. [Allure (кратко)](#allure-кратко)
-17. [Документация модулей](#документация-модулей)
+16. [J3 — Device Inventory API (облако и DFU)](#j3--mock-device-inventory-api-облако-и-dfu)
+17. [Allure (кратко)](#allure-кратко)
+18. [Документация модулей](#документация-модулей)
 
 ### Как читать каждый раздел
 

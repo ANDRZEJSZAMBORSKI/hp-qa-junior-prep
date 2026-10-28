@@ -40,3 +40,18 @@ class JobDeadlineExceeded(DeadlineExceededError):
 
 class WorkerDeadlineExceeded(DeadlineExceededError):
     """Worker execution deadline exceeded."""
+
+class DeviceLabError(LabFwError):
+    """Base error for device inventory lab failures."""
+
+
+class DeviceNotFoundError(DeviceLabError):
+    """Requested device does not exist in the inventory."""
+
+
+class InvalidStateTransitionError(DeviceLabError):
+    """Requested device state transition is not allowed."""
+
+
+class DfuAlreadyInProgressError(DeviceLabError):
+    """A firmware update is already in progress for this device."""

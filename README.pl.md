@@ -38,8 +38,9 @@ Ten dokument to jednocześnie **instrukcja** (polecenia, env, CI) i **podręczni
 | **L1–L3** | Systemy rozproszone, kolejka/worker, badanie | `src/distributed_lab/`, `tests/distributed_lab/` |
 | **M1–M2** | xdist, izolacja, Selenium Grid, UI w Dockerze | `tests/parallel_lab/`, `tests/conftest.py`, profile Compose |
 | **N1–N3** | Allure, TestRail, Jira, zestawy risk-based | `src/lab_fw/reporting/`, `tests/test_api_client.py`, `pyproject.toml` (markery) |
+| **J3** | Mock Device Inventory (chmura, DFU, heartbeat) | `src/device_lab/`, `tests/device_lab/` |
 
-Proponowana kolejność: **Szybki start → Struktura → I1–I4 → L1 → L2 → L3 → M1 → M2 → N1 → N2 → N3**. Sekcje **Docker** i **GitHub Actions** warto mieć pod ręką przy każdym uruchomieniu.
+Proponowana kolejność: **Szybki start → Struktura → I1–I4 → L1 → L2 → L3 → M1 → M2 → N1 → N2 → N3 → J3**. Sekcje **Docker** i **GitHub Actions** warto mieć pod ręką przy każdym uruchomieniu.
 
 ### Spis treści
 
@@ -58,8 +59,9 @@ Proponowana kolejność: **Szybki start → Struktura → I1–I4 → L1 → L2 
 13. [N1 — Allure](#n1--raporty-allure)
 14. [N2 — TestRail i Jira](#n2--jira--i-testrail)
 15. [N3 — risk-based (smoke / full)](#n3--testy-oparte-na-ryzyku-smoke-i-pełna-regresja)
-16. [Allure (skrót)](#allure-skrót)
-17. [Dokumentacja modułów](#dokumentacja-modułów)
+16. [J3 — Device Inventory API (chmura i DFU)](#j3--mock-device-inventory-api-chmura-i-dfu)
+17. [Allure (skrót)](#allure-skrót)
+18. [Dokumentacja modułów](#dokumentacja-modułów)
 
 ### Jak czytać rozdziały
 
@@ -1365,6 +1367,124 @@ pytest tests/parallel_lab -m parallel_lab -n 2 -q
 3. Wiesz, kiedy potrzebny jest **`serial`** przy UI i czemu nie łączy się z `-n auto` bez grupowania.
 
 
+## J3 — mock Device Inventory API (chmura i DFU)
+
+<!-- readme-chapter:j3 -->
+### O tym rozdziale
+
+**J3** to implementacja edukacyjna **chmurnego Device Inventory**: lista urządzeń, stany `online` / `offline` / `dfu_in_progress`, heartbeat oraz scenariusze **DFU** (Device Firmware Update) bez Bluetooth i bez fizycznego sprzętu. Kod: `src/device_lab/`; kontrakt HTTP symuluje **`httpx.MockTransport`** + **`ApiClient`** — jak w [mocks_lab](tests/mocks_lab/README.pl.md) i [I1](README.pl.md#schemat-interakcji-api-i1).
+
+Powiązane: [N3 — zestawy risk-based](#n3--testy-oparte-na-ryzyku-smoke-i-pełna-regresja) (klasa **C**, API chmury), [L1](#systemy-rozproszone-teoria-i-terminy-l1).
+
+### Architektura (mock chmury in-process)
+
+```text
+  pytest tests/device_lab
+        │
+        ▼
+  InMemoryInventory  ◄───  create_handler(inventory)
+        │                        │
+        │                        ▼
+        │                  httpx.MockTransport
+        │                        │
+        └────────────────────────┼──► ApiClient (lab_fw)
+                                 │
+                           JSON /devices/…
+```
+
+Bez profilu Compose i bez sieci — handler jak w [mocks_lab](tests/mocks_lab/README.pl.md).
+
+### Układ repozytorium
+
+| Element | Ścieżka | Rola |
+|---------|---------|------|
+| Modele | `src/device_lab/models.py` | `Device`, `DeviceState`, `parse_device` → `SchemaError` |
+| Inventory | `src/device_lab/inventory.py` | `InMemoryInventory` — źródło prawdy in-process |
+| HTTP | `src/device_lab/api.py` | `create_handler(inventory)` |
+| Błędy | `src/lab_fw/core/errors.py` | `DeviceNotFoundError`, `InvalidStateTransitionError`, `DfuAlreadyInProgressError` |
+| Testy | `tests/device_lab/` | marker `@pytest.mark.device_lab` |
+
+Pełny opis: [Device lab README](tests/device_lab/README.pl.md).
+
+### Model stanów
+
+| Stan | Znaczenie |
+|------|-----------|
+| `offline` | Zarejestrowane; brak świeżego heartbeat |
+| `online` | Gotowe na komendy; `last_seen_at` po heartbeat |
+| `dfu_in_progress` | Trwa aktualizacja FW; wersja bez zmian do `complete_dfu` |
+
+**Rejestracja:** `register(...)` → **`offline`**, `last_seen_at = None`.
+
+### Dozwolone przejścia
+
+| Z | Do | Mechanizm |
+|---|-----|-----------|
+| `offline` | `online` | `heartbeat()` lub `set_state(online)` |
+| `online` | `offline` | `set_state(offline)` |
+| `online` | `dfu_in_progress` | `start_dfu(...)` |
+| `dfu_in_progress` | `online` | `complete_dfu(...)` lub `fail_dfu()` |
+
+**Zasady:** `set_state` nie wchodzi/wychodzi z DFU; powtórny `start_dfu` → `DfuAlreadyInProgressError`; **`heartbeat` w DFU** nie wymusza `online`, tylko aktualizuje `last_seen_at`.
+
+**Ryzyko „ghost online”:** `set_state(online)` bez heartbeat → `last_seen_at is None` — testy to dokumentują.
+
+### HTTP API (mock chmury)
+
+| Metoda | Path | Działanie |
+|--------|------|-----------|
+| GET | `/devices` | Lista urządzeń |
+| GET | `/devices/{id}` | Jedno urządzenie / 404 |
+| POST | `/devices/{id}/heartbeat` | Heartbeat |
+| POST | `/devices/{id}/dfu/start` | Start DFU, body `target_version` |
+| POST | `/devices/{id}/dfu/complete` | Body `version` |
+| POST | `/devices/{id}/dfu/fail` | Przerwanie DFU |
+| POST | `/devices/{id}/dfu/set_state` | Body `state` |
+
+Niepoprawny JSON lub puste stringi → **400**; nieznana trasa → **404**; zła metoda pod `/devices/…` → **405**.
+
+Przykład z `ApiClient`:
+
+```python
+from device_lab.api import create_handler
+from device_lab.inventory import InMemoryInventory
+from lab_fw.api.client import ApiClient
+from lab_fw.core.config import Settings
+import httpx
+
+inventory = InMemoryInventory()
+inventory.register("device-001")
+transport = httpx.MockTransport(create_handler(inventory))
+settings = Settings(base_url="https://device-cloud.test", timeout_s=5.0, log_level="INFO")
+
+with ApiClient(settings, transport=transport) as client:
+    r = client.get("/devices/device-001")
+    assert r.status_code == 200
+```
+
+### Uruchomienie
+
+```bash
+pytest tests/device_lab -m device_lab -q
+pytest --collect-only -q -m device_lab
+```
+
+W filtrze CI: `not ui and not selenium and not compose`. Marker w `pyproject.toml`.
+
+### Powiązanie z N3 (risk-based)
+
+| Poziom | Zakres J3 |
+|--------|-----------|
+| PR / smoke | podzbiór `device_lab` lub mock GET |
+| Nightly | pełny `-m device_lab` |
+| DFU na sprzęcie | poza tym pakietem; tutaj kontrakt i stany |
+
+### Samokontrola
+
+1. Dlaczego DFU kończy `complete_dfu`, a nie `set_state`?
+2. Różnica `fail_dfu` vs `complete_dfu` dla wersji FW?
+3. Pełny zielony `-m device_lab`.
+
 ## Allure (skrót)
 
 <!-- readme-chapter:allure_short -->
@@ -1387,10 +1507,21 @@ Upload artefaktu: `if: always()` (workflow **tests** i **CI**).
 <!-- readme-chapter:modules -->
 ### O tym rozdziale
 
-Szczegóły modułów: API → mocks → reporting → UI → plugin → README_PYTEST.
+Szczegóły podsystemów `lab_fw` i pytest. README główny to mapa; README modułów — kontrakty API, stos UI, dekoratory reportingu.
+
+### Proponowana kolejność
+
+1. [API](src/lab_fw/api/README.pl.md) — klient i błędy.
+2. [Device lab](tests/device_lab/README.pl.md) — inventory w chmurze, DFU, MockTransport.
+3. [Mocks lab](tests/mocks_lab/README.pl.md) — szwy podmiany.
+4. [Reporting](src/lab_fw/reporting/README.pl.md) — warstwa Allure.
+5. [UI](src/lab_fw/ui/README.pl.md) — Playwright/Selenium.
+6. [Pytest plugin](src/lab_fw/pytest_plugin/README.pl.md) — hooki.
+7. [README_PYTEST](tests/README_PYTEST.md) — izolacja i higiena testów.
 
 
 - [API](src/lab_fw/api/README.pl.md)
+- [Device lab](tests/device_lab/README.pl.md)
 - [UI](src/lab_fw/ui/README.pl.md)
 - [Reporting / Allure](src/lab_fw/reporting/README.pl.md)
 - [Pytest plugin](src/lab_fw/pytest_plugin/README.pl.md)

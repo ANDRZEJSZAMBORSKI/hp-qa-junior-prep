@@ -38,8 +38,9 @@
 | **L1–L3** | Распределённые системы, очередь/worker, расследование | `src/distributed_lab/`, `tests/distributed_lab/` |
 | **M1–M2** | xdist, изоляция, Selenium Grid, UI в Docker | `tests/parallel_lab/`, `tests/conftest.py`, Compose profiles |
 | **N1–N3** | Allure, TestRail, Jira, risk-based наборы | `src/lab_fw/reporting/`, `tests/test_api_client.py`, `pyproject.toml` (markers) |
+| **J3** | Mock Device Inventory (cloud, DFU, heartbeat) | `src/device_lab/`, `tests/device_lab/` |
 
-Рекомендуемый порядок чтения: **Быстрый старт → Структура → I1–I4 → L1 → L2 → L3 → M1 → M2 → N1 → N2 → N3**. Разделы Docker и GitHub Actions удобно держать под рукой при любом прогоне.
+Рекомендуемый порядок чтения: **Быстрый старт → Структура → I1–I4 → L1 → L2 → L3 → M1 → M2 → N1 → N2 → N3 → J3**. Разделы Docker и GitHub Actions удобно держать под рукой при любом прогоне.
 
 ### Содержание
 
@@ -58,8 +59,9 @@
 13. [N1 — Allure](#n1--отчёты-allure)
 14. [N2 — TestRail и Jira](#n2--jira--testrail)
 15. [N3 — risk-based (smoke / full)](#n3--тестирование-на-основе-рисков-smoke-и-полная-регрессия)
-16. [Allure (кратко)](#allure-кратко)
-17. [Документация модулей](#документация-модулей)
+16. [J3 — Device Inventory API (облако и DFU)](#j3--mock-device-inventory-api-облако-и-dfu)
+17. [Allure (кратко)](#allure-кратко)
+18. [Документация модулей](#документация-модулей)
 
 ### Как читать каждый раздел
 
@@ -1466,6 +1468,131 @@ pytest tests/parallel_lab -m parallel_lab -n 2 -q
 3. Знаете, когда нужен **`serial`** для UI и почему его не смешивают с `-n auto` без группы.
 
 
+## J3 — mock Device Inventory API (облако и DFU)
+
+<!-- readme-chapter:j3 -->
+### О разделе
+
+**J3** — учебная реализация **облачного Device Inventory**: список устройств, состояние `online` / `offline` / `dfu_in_progress`, heartbeat, сценарии **DFU** (Device Firmware Update) без Bluetooth и без физического железа. Код в `src/device_lab/`; HTTP-контракт имитируется через **`httpx.MockTransport`** и **`ApiClient`** — тот же приём, что в [mocks_lab](tests/mocks_lab/README.md) и [I1](README.md#схема-взаимодействия-api-i1).
+
+Связанные темы: [N3 — risk-based наборы](#n3--тестирование-на-основе-рисков-smoke-и-полная-регрессия) (класс **C**, cloud API), [L1](#распределённые-системы-теория-и-термины-l1) (timeout, eventual consistency), [Distributed lab](src/distributed_lab/queue_worker.py) (очереди и side effects).
+
+### Архитектура (mock cloud in-process)
+
+```text
+  pytest tests/device_lab
+        │
+        ▼
+  InMemoryInventory  ◄───  create_handler(inventory)
+        │                        │
+        │                        ▼
+        │                  httpx.MockTransport
+        │                        │
+        └────────────────────────┼──► ApiClient (lab_fw)
+                                 │
+                           JSON /devices/…
+```
+
+Compose и реальная сеть не нужны: handler подключается в тестах так же, как в [mocks_lab](tests/mocks_lab/README.md).
+
+### Назначение в архитектуре репозитория
+
+| Компонент | Путь | Роль |
+|-----------|------|------|
+| Модели | `src/device_lab/models.py` | `Device`, `DeviceState`, `parse_device` → `SchemaError` |
+| Inventory | `src/device_lab/inventory.py` | `InMemoryInventory` — источник правды in-process |
+| HTTP handler | `src/device_lab/api.py` | `create_handler(inventory)` для MockTransport |
+| Ошибки | `src/lab_fw/core/errors.py` | `DeviceNotFoundError`, `InvalidStateTransitionError`, `DfuAlreadyInProgressError` |
+| Тесты | `tests/device_lab/` | маркер `@pytest.mark.device_lab` |
+
+Подробная опись API, таблицы переходов и команды — [Device lab README](tests/device_lab/README.md).
+
+### Модель состояний
+
+| Состояние | Значение |
+|-----------|----------|
+| `offline` | Устройство зарегистрировано; активного heartbeat нет (или давно не было) |
+| `online` | Доступно для команд; обновлён `last_seen_at` после heartbeat |
+| `dfu_in_progress` | Идёт обновление прошивки; версия FW **не** меняется до `complete_dfu` |
+
+**Регистрация:** `register(device_id, firmware_version="1.0.0")` создаёт устройство в **`offline`**, `last_seen_at = None`.
+
+### Допустимые переходы
+
+| Из | В | Механизм |
+|----|---|----------|
+| `offline` | `online` | `heartbeat()` или `set_state(online)` |
+| `online` | `offline` | `set_state(offline)` |
+| `online` | `dfu_in_progress` | `start_dfu(device_id, target_version)` |
+| `dfu_in_progress` | `online` | `complete_dfu(new_version)` или `fail_dfu()` |
+
+**Ограничения:**
+
+- `set_state` **не** переводит в/из DFU — только `offline` ↔ `online`.
+- Повторный `start_dfu` при активном DFU → `DfuAlreadyInProgressError`.
+- `start_dfu` только из `online`.
+- **`heartbeat` во время DFU** не сбрасывает состояние в `online`; обновляет только `last_seen_at` (устройство «на связи», но всё ещё в DFU).
+
+**Продуктовый риск «ghost online»:** `set_state(online)` без heartbeat оставляет `last_seen_at is None` — в UI может быть «online», а freshness по heartbeat не подтверждена. Тесты фиксируют это поведение.
+
+### HTTP API (mock cloud)
+
+Базовый path-префикс: `/devices`. Handler: `create_handler(inventory)`.
+
+| Метод | Path | Действие |
+|-------|------|----------|
+| GET | `/devices` | Список всех устройств (JSON array) |
+| GET | `/devices/{id}` | Одно устройство или 404 `device_not_found` |
+| POST | `/devices/{id}/heartbeat` | Heartbeat → 200 + device JSON |
+| POST | `/devices/{id}/dfu/start` | Body: `{"target_version":"…"}` → DFU (409 при конфликте состояния) |
+| POST | `/devices/{id}/dfu/complete` | Body: `{"version":"…"}` → новая FW + online |
+| POST | `/devices/{id}/dfu/fail` | Прервать DFU → online, FW без изменений |
+| POST | `/devices/{id}/dfu/set_state` | Body: `{"state":"online"|"offline"}` — admin-style `set_state` |
+
+Неверный JSON, пустые строки в body → **400**; неизвестный маршрут → **404**; неподдерживаемый метод под `/devices/…` → **405**.
+
+Пример с `ApiClient`:
+
+```python
+from device_lab.api import create_handler
+from device_lab.inventory import InMemoryInventory
+from lab_fw.api.client import ApiClient
+from lab_fw.core.config import Settings
+import httpx
+
+inventory = InMemoryInventory()
+inventory.register("device-001")
+transport = httpx.MockTransport(create_handler(inventory))
+settings = Settings(base_url="https://device-cloud.test", timeout_s=5.0, log_level="INFO")
+
+with ApiClient(settings, transport=transport) as client:
+    r = client.get("/devices/device-001")
+    assert r.status_code == 200
+```
+
+### Запуск тестов
+
+```bash
+pytest tests/device_lab -m device_lab -q
+pytest --collect-only -q -m device_lab
+```
+
+Тесты входят в CI-фильтр `not ui and not selenium and not compose` (см. [GitHub Actions](#github-actions)). Маркер описан в `pyproject.toml`.
+
+### Связь с risk-based наборами (N3)
+
+| Уровень | Что из J3 |
+|---------|-----------|
+| PR / smoke | `tests/device_lab` subset или mock GET `/devices/{id}` |
+| Nightly | полный `-m device_lab` + inventory state transitions |
+| Pre-release / device-lab | реальный DFU на железе **вне** этого пакета; здесь — контракт и логика состояний |
+
+### Самопроверка
+
+1. Объясни, почему DFU не завершается через `set_state(online)`.
+2. Чем отличается `fail_dfu` от `complete_dfu` по версии прошивки.
+3. Запусти `pytest tests/device_lab -m device_lab -q` — все тесты должны пройти.
+
 ## Allure (кратко)
 
 <!-- readme-chapter:allure_short -->
@@ -1498,14 +1625,16 @@ allure serve allure-results
 ### Рекомендуемый порядок
 
 1. [API](src/lab_fw/api/README.md) — клиент и ошибки.
-2. [Mocks lab](tests/mocks_lab/README.md) — швы подмены.
-3. [Reporting](src/lab_fw/reporting/README.md) — Allure слой.
-4. [UI](src/lab_fw/ui/README.md) — Playwright/Selenium.
-5. [Pytest plugin](src/lab_fw/pytest_plugin/README.md) — hooks.
-6. [README_PYTEST](tests/README_PYTEST.md) — изоляция и hygiene тестов.
+2. [Device lab](tests/device_lab/README.md) — облачный inventory, DFU, MockTransport.
+3. [Mocks lab](tests/mocks_lab/README.md) — швы подмены.
+4. [Reporting](src/lab_fw/reporting/README.md) — Allure слой.
+5. [UI](src/lab_fw/ui/README.md) — Playwright/Selenium.
+6. [Pytest plugin](src/lab_fw/pytest_plugin/README.md) — hooks.
+7. [README_PYTEST](tests/README_PYTEST.md) — изоляция и hygiene тестов.
 
 
 - [API](src/lab_fw/api/README.md)
+- [Device lab](tests/device_lab/README.md)
 - [UI](src/lab_fw/ui/README.md)
 - [Reporting / Allure](src/lab_fw/reporting/README.md)
 - [Pytest plugin](src/lab_fw/pytest_plugin/README.md)

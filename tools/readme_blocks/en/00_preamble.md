@@ -32,8 +32,9 @@ This document is both a **runbook** (commands, env vars, CI) and a **textbook** 
 | **L1–L3** | Distributed concepts, queue/worker, investigation | `src/distributed_lab/`, `tests/distributed_lab/` |
 | **M1–M2** | xdist, isolation, Selenium Grid, UI in Docker | `tests/parallel_lab/`, `tests/conftest.py`, Compose profiles |
 | **N1–N3** | Allure, TestRail, Jira, risk-based suites | `src/lab_fw/reporting/`, `tests/test_api_client.py`, `pyproject.toml` (markers) |
+| **J3** | Mock Device Inventory (cloud, DFU, heartbeat) | `src/device_lab/`, `tests/device_lab/` |
 
-Suggested reading order: **Quick start → Layout → I1–I4 → L1 → L2 → L3 → M1 → M2 → N1 → N2 → N3**. Keep **Docker** and **GitHub Actions** nearby for every run.
+Suggested reading order: **Quick start → Layout → I1–I4 → L1 → L2 → L3 → M1 → M2 → N1 → N2 → N3 → J3**. Keep **Docker** and **GitHub Actions** nearby for every run.
 
 ### Table of contents
 
@@ -52,8 +53,9 @@ Suggested reading order: **Quick start → Layout → I1–I4 → L1 → L2 → 
 13. [N1 — Allure](#n1--allure-reporting)
 14. [N2 — TestRail and Jira](#n2--jira--testrail)
 15. [N3 — risk-based (smoke / full)](#n3--risk-based-testing-smoke-and-full-regression)
-16. [Allure quick reference](#allure-quick-reference)
-17. [Module documentation](#module-documentation)
+16. [J3 — Device Inventory API (cloud and DFU)](#j3--mock-device-inventory-api-cloud-and-dfu)
+17. [Allure (short)](#allure-short)
+18. [Module documentation](#module-documentation)
 
 ### How chapters are structured
 

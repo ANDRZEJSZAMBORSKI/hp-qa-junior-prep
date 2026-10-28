@@ -86,6 +86,11 @@ HEADINGS: dict[str, dict[str, str]] = {
         "en": "## N3 — risk-based testing (smoke and full regression)",
         "pl": "## N3 — testy oparte na ryzyku (smoke i pełna regresja)",
     },
+    "j3": {
+        "ru": "## J3 — mock Device Inventory API (облако и DFU)",
+        "en": "## J3 — mock Device Inventory API (cloud and DFU)",
+        "pl": "## J3 — mock Device Inventory API (chmura i DFU)",
+    },
     "allure_short": {
         "ru": "## Allure (кратко)",
         "en": "## Allure (short)",
