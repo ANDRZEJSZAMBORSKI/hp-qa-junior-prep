@@ -19,6 +19,9 @@
 - Понимание retry, timeout, deadline, idempotency на примере `ApiClient` и `Worker`.
 - Навык расследования падений: env → build → logs → metrics → trace.
 - Практику Allure + опциональную связь с TestRail и Jira.
+- Политику **HTTP retry** (GET vs POST), **anti-flaky** hygiene и **quarantine** без ослабления CI.
+- Различие **smoke**, **CI-filter** и **full collection**; чтение workflow **tests** vs **CI**.
+- Дисциплину **AI-assisted** разработки: diff → pytest → Actions, без слепого merge.
 
 ### Требования
 
@@ -39,8 +42,9 @@
 | **M1–M2** | xdist, изоляция, Selenium Grid, UI в Docker | `tests/parallel_lab/`, `tests/conftest.py`, Compose profiles |
 | **N1–N3** | Allure, TestRail, Jira, risk-based наборы | `src/lab_fw/reporting/`, `tests/test_api_client.py`, `pyproject.toml` (markers) |
 | **J3** | Mock Device Inventory (cloud, DFU, heartbeat) | `src/device_lab/`, `tests/device_lab/` |
+| **O1–O4** | Retry, flaky, quality gates, AI workflow | `retry_policy.py`, `tests.yml`, `tests/README_PYTEST.md` |
 
-Рекомендуемый порядок чтения: **Быстрый старт → Структура → I1–I4 → L1 → L2 → L3 → M1 → M2 → N1 → N2 → N3 → J3**. Разделы Docker и GitHub Actions удобно держать под рукой при любом прогоне.
+Рекомендуемый порядок чтения: **Быстрый старт → Структура → I1–I4 → L1 → L2 → L3 → M1 → M2 → N1 → N2 → N3 → J3 → O**. Разделы **Docker**, **GitHub Actions** и **Маркеры pytest** держите под рукой при каждом прогоне.
 
 ### Содержание
 
@@ -60,8 +64,9 @@
 14. [N2 — TestRail и Jira](#n2--jira--testrail)
 15. [N3 — risk-based (smoke / full)](#n3--тестирование-на-основе-рисков-smoke-и-полная-регрессия)
 16. [J3 — Device Inventory API (облако и DFU)](#j3--mock-device-inventory-api-облако-и-dfu)
-17. [Allure (кратко)](#allure-кратко)
-18. [Документация модулей](#документация-модулей)
+17. [O — надёжность automation](#o--надёжность-automation-retry-flaky-ci-gates-ai)
+18. [Allure (кратко)](#allure-кратко)
+19. [Документация модулей](#документация-модулей)
 
 ### Как читать каждый раздел
 
@@ -1359,7 +1364,7 @@ bash scripts/upload_testrail.sh
 
 ### Инвентаризация: `--collect-only`
 
-Команды ниже **собирают** node id тестов и **не выполняют** их. Числа в таблице получены для текущего дерева репозитория (`400` тестов в корне `tests/`). После добавления тестов пересчитайте:
+Команды ниже **собирают** node id тестов и **не выполняют** их. Числа в таблице получены для текущего дерева репозитория (**476** тестов в корне `tests/`). После добавления тестов пересчитайте:
 
 ```bash
 python -m pytest --collect-only -q
@@ -1383,6 +1388,7 @@ python -m pytest --collect-only -q -m smoke
 | **Compose** | 4 | Mock API в Docker: health, users, 401, timeout | `python -m pytest --collect-only -q -m compose` |
 | **Distributed lab** | 85 | Queue/worker, retry, timeout, deadline, idempotency, L3 | `python -m pytest --collect-only -q -m distributed_lab` |
 | **Parallel lab** | 10 | xdist, shared files, FileLock, race (M1) | `python -m pytest --collect-only -q -m parallel_lab` |
+| **Device lab** | 76 | Mock cloud inventory, DFU, heartbeat, HTTP handler (J3) | `python -m pytest --collect-only -q -m device_lab` |
 | **Serial** | 12 | Последовательные сценарии, scope фикстур, браузер | `python -m pytest --collect-only -q -m serial` |
 | **Reporting** | 51 | Allure steps, severity, testcase/issue links | `python -m pytest --collect-only -q -m reporting` |
 
@@ -1401,10 +1407,10 @@ python -m pytest --collect-only -q -m smoke
 
 | Показатель | Значение |
 |------------|----------|
-| Собрано | **315** |
+| Собрано | **391** |
 | Выражение | `-m "not ui and not selenium and not compose"` |
 | Исключено | Браузер, живой MockServer Compose |
-| Остаётся | API, mocks, config, reporting, distributed_lab, parallel_lab, … |
+| Остаётся | API, mocks, config, reporting, distributed_lab, parallel_lab, **device_lab**, … |
 
 ```bash
 python -m pytest --collect-only -q -m "not ui and not selenium and not compose"
@@ -1416,7 +1422,7 @@ Workflow **tests** запускает этот фильтр с `-n auto` и `--a
 
 | Показатель | Значение |
 |------------|----------|
-| Всего собрано | **400** |
+| Всего собрано | **476** |
 | Команда | `python -m pytest --collect-only -q` |
 
 Полный прогон — **максимальная** проверка репозитория; для ежедого push обычно избыточен по времени и инфраструктуре.
@@ -1427,8 +1433,8 @@ Workflow **tests** запускает этот фильтр с `-n auto` и `--a
 |--------|------|-----------|
 | **Smoke** | Быстрый сигнал после изменения | `-m smoke` (17 тестов) |
 | **Regression (узкая)** | Область, которую затронул diff | `-m api`, `-m mocks_httpx`, `-m distributed_lab`, … |
-| **CI regression (широкая)** | Стабильный gate без UI/Docker | 315 тестов, фильтр **tests** |
-| **Full suite** | Полное покрытие коллекции | все **400**, + отдельно UI/selenium/compose при необходимости |
+| **CI regression (широкая)** | Стабильный gate без UI/Docker | **391** тест, фильтр **tests** |
+| **Full suite** | Полное покрытие коллекции | все **476**, + отдельно UI/selenium/compose при необходимости |
 
 **Severity** и **feature** в Allure (N1) и case priority в TestRail (N2) дополняют маркеры: критичный autotest может входить и в smoke, и в `-m api`.
 
@@ -1438,7 +1444,7 @@ Workflow **tests** запускает этот фильтр с `-n auto` и `--a
 |---------|--------|----------------|----------------------|
 | Локальная проверка после правки | По области | `pytest tests/mocks_lab -m mocks_httpx -q` | Сломали HTTP mock / ApiClient |
 | Быстрый gate | Smoke | `pytest -m smoke -q` | «Фреймворк вообще жив» |
-| Push / PR (как CI) | CI-315 | `pytest -m "not ui and not selenium and not compose" -q -n auto` | Регресс API/L2/L3/mocks без Grid |
+| Push / PR (как CI) | CI-391 | `pytest -m "not ui and not selenium and not compose" -q -n auto` | Регресс API/L2/L3/mocks/device_lab без Grid |
 | После изменений UI | Playwright subset | `pytest -m "ui and not serial" -q` | Браузерные сценарии |
 | Перед релизом / nightly | Full + infra | `pytest -q` локально; `docker compose up … tests`; profiles M2 | Compose, Grid, полная коллекция |
 
@@ -1463,8 +1469,8 @@ pytest tests/parallel_lab -m parallel_lab -n 2 -q
 
 ### Самопроверка
 
-1. `--collect-only` для smoke даёт **17**, для CI-выражения — **315**, всего — **400**.
-2. Можете объяснить, почему **distributed_lab** входит в CI-315, а **compose** — нет (in-process vs живой MockServer).
+1. `--collect-only` для smoke даёт **17**, для CI-выражения — **391**, всего — **476**; для **device_lab** — **76**.
+2. Можете объяснить, почему **distributed_lab** и **device_lab** входят в CI-391, а **compose** — нет (in-process vs живой MockServer).
 3. Знаете, когда нужен **`serial`** для UI и почему его не смешивают с `-n auto` без группы.
 
 
@@ -1593,6 +1599,127 @@ pytest --collect-only -q -m device_lab
 2. Чем отличается `fail_dfu` от `complete_dfu` по версии прошивки.
 3. Запусти `pytest tests/device_lab -m device_lab -q` — все тесты должны пройти.
 
+## O — надёжность automation (retry, flaky, CI gates, AI)
+
+<!-- readme-chapter:o -->
+### О разделе
+
+**O** — надёжность automation: **контролируемый retry** в HTTP-клиенте, **anti-flaky** hygiene, **quality gates** в GitHub Actions и **AI-assisted** разработка с обязательной верификацией. Материал опирается на код `lab_fw`, workflow `.github/workflows/` и [tests/README_PYTEST.md](tests/README_PYTEST.md).
+
+Связанные главы: [L1](#распределённые-системы-теория-и-термины-l1) (retry ≠ timeout), [L2](#l2--очередь-retry-timeout-deadline-idempotency) (worker), [L3](#l3--расследование-сбоев-чек-лист), [N3](#n3--тестирование-на-основе-рисков-smoke-и-полная-регрессия) (наборы и CI), [M1](#m1--параллельное-выполнение-и-изоляция-ресурсов) (xdist, `serial`), [J3](#j3--mock-device-inventory-api-облако-и-dfu) (POST DFU без слепого retry).
+
+---
+
+### O1 — Политика retry (HTTP-клиент)
+
+**Источник правды:** `src/lab_fw/api/retry_policy.py` → `should_retry(exc)`; оркестрация — `src/lab_fw/core/retry.py` → `retry_call`.
+
+| Ситуация | Retry? |
+|----------|--------|
+| **GET** + HTTP **429**, **503** | Да |
+| **GET** + HTTP 400, 401, 404, 422, **500**, … | Нет |
+| **GET** + transport (ConnectError, ReadTimeout, …) | Да |
+| **POST** + любой status или transport | **Нет** |
+
+**Зачем POST не retry:** сервер мог уже выполнить операцию; повтор создаёт **дублирующий side effect** (запись, платёж, второй `start_dfu`). Для POST после timeout нужны **idempotency** и явная политика (см. L2), а не слепой цикл.
+
+**GET + 500 не retry:** это ответ о **внутренней ошибке** приложения; повторы маскируют дефект и нагружают систему. Retry только на **transient** (503, 429, сеть).
+
+**429:** политика разрешает retry на GET; в production учитывают **`Retry-After`**; в учебном клиенте пауза задаётся **backoff + jitter** в `retry_call`, без парсинга заголовка.
+
+**Параметры `retry_call`:**
+
+- `attempts=3` — три вызова `fn()` всего (первая попытка + два повтора).
+- `retry_if=True` — перед повтором вызывается **`should_retry`**; при `retry_if=False` возможен «слепой» retry по `retry_on` (опасно для POST).
+- После исчерпания попыток пробрасывается **последнее** исключение — успех не подменяется.
+
+```bash
+pytest tests/test_api_retry_policy.py -m api -q
+pytest tests/test_api_retry_policy.py -v -k "503" --log-cli-level=WARNING
+```
+
+**Retry клиента ≠ pytest-rerun:** `pytest-rerunfailures` на весь suite может скрыть flaky или настоящий баг; flaky лечат через **O2**, не глобальным rerun.
+
+---
+
+### O2 — Anti-flaky и quarantine
+
+Чеклист: [tests/README_PYTEST.md](tests/README_PYTEST.md) → **Anti-flaky checklist**.
+
+1. Тесты **не зависят от порядка** выполнения.
+2. **Нет shared mutable state** между тестами (общие list/dict на уровне модуля, один файл без изоляции).
+3. Unit/API **без реальной сети** — MockTransport / mock handler.
+4. **Не `sleep`** как условие успеха — ожидание **состояния** с timeout (элемент UI, статус job, JSON ответа).
+5. Suite **зелёный** и без `-n auto`, и с **`pytest -q -n auto`**.
+
+**xdist:** каждый worker — отдельный процесс; предпочтительно **уникальный** файл/запись/fixture на тест; если общий ресурс неизбежен — **FileLock** (`tests/parallel_lab/`, M1) или **`@pytest.mark.xdist_group`**. Маркер **`serial`** — тесты, которые нельзя безопасно гонять параллельно с другими; фактический режим задаёт **команда pytest** (не смешивать `serial` UI с `-n auto` без группы).
+
+**Quarantine (процесс):** воспроизвести → логи / Allure → root cause → fix; если fix не сразу — **`@pytest.mark.skip(reason=…)`** + issue, **не** `--reruns 10` на весь CI.
+
+```bash
+pytest -q -n auto
+pytest tests/parallel_lab -m parallel_lab -n 2 -q
+```
+
+---
+
+### O3 — Quality gates в CI
+
+Два уровня gate (см. [GitHub Actions](#github-actions)):
+
+| Workflow | Runner | Что проверяет |
+|----------|--------|----------------|
+| **`tests.yml`** | `ubuntu-latest`, pip | `pytest -m "not ui and not selenium and not compose" -q -n auto`, секрет `LAB_FW_API_TOKEN`, Allure artifact |
+| **`ci.yml`** | Docker Compose | `mock-api`, compose-тесты, Selenium и Playwright (parallel + **serial**), cleanup `if: always()` |
+
+**Shift-left:** шаг **Check secret** падает **до** pytest, если токен пустой.
+
+**CI-filter (tests.yml):** включает API, mocks, `distributed_lab`, `parallel_lab`, **`device_lab`**, reporting — **исключает** `ui`, `selenium`, `compose` (нужны браузер / MockServer в контейнере).
+
+**Smoke (`-m smoke`, ~17 тестов)** — быстрый локальный сигнал; **не** заменяет CI-filter (~**391** тест). **Полная коллекция** — ~**476** (пересчёт: `pytest --collect-only -q`).
+
+**`if: always()`** на upload Allure — артеfact для расследования при **красном** job; статус job остаётся failed.
+
+Локальная симуляция PR gate:
+
+```bash
+pytest -m "not ui and not selenium and not compose" -q -n auto --tb=line
+```
+
+---
+
+### O4 — AI-assisted development
+
+Рекомендуемый цикл:
+
+1. **Требования и ограничения** (контракт API, «не менять тесты без согласования»).
+2. **Агент** (например Cursor): scaffold, docs, поиск по репо, черновики.
+3. **Review diff** — домен, security, стиль, соответствие `lab_fw`.
+4. **pytest** локально; для крупных изменений — **CI-filter**; при необходимости — полный **`ci.yml`** локально через Compose.
+5. **Merge** только после review и зелёного gate; flaky — **O2**, не ослабление CI.
+
+AI ускоряет черновики; **качество** обеспечивают тесты, логи и ваш review — как для любого PR.
+
+---
+
+### Сводная таблица
+
+| Тема | Ключевые файлы / команды |
+|------|---------------------------|
+| Retry | `retry_policy.py`, `test_api_retry_policy.py` |
+| Flaky | `tests/README_PYTEST.md`, `test_xdist_isolation.py`, `parallel_lab` |
+| Gates | `.github/workflows/tests.yml`, `ci.yml`, N3 |
+| AI | Review + pytest + Actions |
+
+### Самопроверка
+
+1. Назовите три случая, когда **GET** retry, и один, когда **POST** не retry.
+2. Чем **smoke** отличается от фильтра **tests.yml**?
+3. Зачем **`distributed_lab`** в CI-filter, а **`compose`** — нет?
+4. Почему **`upload-artifact: if: always()`** не делает job зелёным?
+5. Одним абзацем: ваш workflow с AI от ТЗ до merge.
+
+
 ## Allure (кратко)
 
 <!-- readme-chapter:allure_short -->
@@ -1648,7 +1775,4 @@ allure serve allure-results
 
 Внешний тематический план навыков (отдельный файл), не часть runtime репозитория.
 
-Используй [PLAN_MID_HP.md](PLAN_MID_HP.md) как список тем для расширения практики поверх этого README.
-
-
-Тематический план развития навыков: [PLAN_MID_HP.md](PLAN_MID_HP.md).
+Файл [PLAN_MID_HP.md](PLAN_MID_HP.md) — внешний указатель тем и упражнений; runtime и команды прогона описаны в этом README и в модульных README.

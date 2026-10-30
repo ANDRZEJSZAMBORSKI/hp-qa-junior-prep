@@ -12,7 +12,9 @@ A map of the repo: reusable framework code, pytest scenarios, and how Docker/CI 
 | `src/lab_fw/reporting/` | Allure decorators, steps, attachments |
 | `src/lab_fw/pytest_plugin/` | hooks, markers |
 | `src/distributed_lab/` | `Job`, `Worker`, `InMemoryQueue` (L2) |
+| `src/device_lab/` | Mock cloud inventory, DFU handler (J3) |
 | `tests/` | all pytest modules |
+| `tests/device_lab/` | Inventory HTTP contract, `device_lab` marker |
 | `tests/mocks_lab/` | pure mocks and MockTransport (I2) |
 | `tests/distributed_lab/` | L2/L3 |
 | `tests/parallel_lab/` | M1, xdist and files |

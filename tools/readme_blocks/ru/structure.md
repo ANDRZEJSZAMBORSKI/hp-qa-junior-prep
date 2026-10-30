@@ -12,7 +12,9 @@
 | `src/lab_fw/reporting/` | Allure decorators, steps, attachments |
 | `src/lab_fw/pytest_plugin/` | hooks, markers integration |
 | `src/distributed_lab/` | `Job`, `Worker`, `InMemoryQueue` (L2) |
+| `src/device_lab/` | Mock cloud inventory, DFU handler (J3) |
 | `tests/` | все pytest-модули |
+| `tests/device_lab/` | HTTP-контракт inventory, маркер `device_lab` |
 | `tests/mocks_lab/` | чистые моки и MockTransport (I2) |
 | `tests/distributed_lab/` | L2/L3 |
 | `tests/parallel_lab/` | M1, xdist и файлы |

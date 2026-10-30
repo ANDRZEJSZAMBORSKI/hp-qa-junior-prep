@@ -19,6 +19,9 @@ Ten dokument to jednocześnie **instrukcja** (polecenia, env, CI) i **podręczni
 - Zrozumienie retry, timeout, deadline i idempotency na przykładzie `ApiClient` i `Worker`.
 - Badanie awarii: env → build → logs → metrics → trace.
 - Allure oraz opcjonalne powiązanie z TestRail i Jira.
+- Politykę **HTTP retry** (GET vs POST), higienę **anti-flaky** i **kwarantannę** bez osłabiania CI.
+- Różnicę **smoke**, **filtr CI** i **pełna kolekcja**; odczyt workflow **tests** vs **CI**.
+- Pętlę **AI-assisted**: diff → pytest → Actions, bez ślepego merge.
 
 ### Wymagania
 
@@ -39,8 +42,9 @@ Ten dokument to jednocześnie **instrukcja** (polecenia, env, CI) i **podręczni
 | **M1–M2** | xdist, izolacja, Selenium Grid, UI w Dockerze | `tests/parallel_lab/`, `tests/conftest.py`, profile Compose |
 | **N1–N3** | Allure, TestRail, Jira, zestawy risk-based | `src/lab_fw/reporting/`, `tests/test_api_client.py`, `pyproject.toml` (markery) |
 | **J3** | Mock Device Inventory (chmura, DFU, heartbeat) | `src/device_lab/`, `tests/device_lab/` |
+| **O1–O4** | Retry, flaky, quality gates, workflow AI | `retry_policy.py`, `tests.yml`, `tests/README_PYTEST.md` |
 
-Proponowana kolejność: **Szybki start → Struktura → I1–I4 → L1 → L2 → L3 → M1 → M2 → N1 → N2 → N3 → J3**. Sekcje **Docker** i **GitHub Actions** warto mieć pod ręką przy każdym uruchomieniu.
+Proponowana kolejność: **Szybki start → Struktura → I1–I4 → L1 → L2 → L3 → M1 → M2 → N1 → N2 → N3 → J3 → O**. Sekcje **Docker**, **GitHub Actions** i **Markery pytest** trzymaj pod ręką przy każdym uruchomieniu.
 
 ### Spis treści
 
@@ -60,8 +64,9 @@ Proponowana kolejność: **Szybki start → Struktura → I1–I4 → L1 → L2 
 14. [N2 — TestRail i Jira](#n2--jira--i-testrail)
 15. [N3 — risk-based (smoke / full)](#n3--testy-oparte-na-ryzyku-smoke-i-pełna-regresja)
 16. [J3 — Device Inventory API (chmura i DFU)](#j3--mock-device-inventory-api-chmura-i-dfu)
-17. [Allure (skrót)](#allure-skrót)
-18. [Dokumentacja modułów](#dokumentacja-modułów)
+17. [O — niezawodność automation](#o--niezawodność-automation-retry-flaky-ci-gates-ai)
+18. [Allure (skrót)](#allure-skrót)
+19. [Dokumentacja modułów](#dokumentacja-modułów)
 
 ### Jak czytać rozdziały
 
@@ -1265,7 +1270,7 @@ Jeden test może mieć **wiele markerów**; `--collect-only` liczy przynależno�
 
 ### Inwentaryzacja: `--collect-only`
 
-Poniższe polecenia **zbierają** node id testów i **nie uruchamiają** ich. Liczby w tabeli dotyczą bieżącego drzewa repozytorium (**400** testów w `tests/`). Po dodaniu testów przelicz:
+Poniższe polecenia **zbierają** node id testów i **nie uruchamiają** ich. Liczby w tabeli dotyczą bieżącego drzewa repozytorium (**476** testów w `tests/`). Po dodaniu testów przelicz:
 
 ```bash
 python -m pytest --collect-only -q
@@ -1289,6 +1294,7 @@ python -m pytest --collect-only -q -m smoke
 | **Compose** | 4 | Mock API w Dockerze: health, users, 401, timeout | `python -m pytest --collect-only -q -m compose` |
 | **Distributed lab** | 85 | Kolejka/worker, retry, timeout, deadline, idempotency, L3 | `python -m pytest --collect-only -q -m distributed_lab` |
 | **Parallel lab** | 10 | xdist, wspólne pliki, FileLock, race (M1) | `python -m pytest --collect-only -q -m parallel_lab` |
+| **Device lab** | 76 | Mock cloud inventory, DFU, heartbeat, handler HTTP (J3) | `python -m pytest --collect-only -q -m device_lab` |
 | **Serial** | 12 | Scenariusze sekwencyjne, scope fixture, przeglądarka | `python -m pytest --collect-only -q -m serial` |
 | **Reporting** | 51 | Kroki Allure, severity, linki testcase/issue | `python -m pytest --collect-only -q -m reporting` |
 
@@ -1307,10 +1313,10 @@ Marker **`serial`** mówi planerowi, by nie mieszać testów z `-n auto` bez św
 
 | Metryka | Wartość |
 |---------|---------|
-| Zebrano | **315** |
+| Zebrano | **391** |
 | Wyrażenie | `-m "not ui and not selenium and not compose"` |
 | Wykluczone | Przeglądarka, żywy MockServer Compose |
-| W zestawie | API, mocki, config, reporting, distributed_lab, parallel_lab, … |
+| W zestawie | API, mocki, config, reporting, distributed_lab, parallel_lab, **device_lab**, … |
 
 ```bash
 python -m pytest --collect-only -q -m "not ui and not selenium and not compose"
@@ -1322,7 +1328,7 @@ Workflow **tests** uruchamia ten filtr z `-n auto` i `--alluredir`. Workflow **C
 
 | Metryka | Wartość |
 |---------|---------|
-| Razem | **400** |
+| Razem | **476** |
 | Polecenie | `python -m pytest --collect-only -q` |
 
 Pełny przebieg to **najszersza** kontrola; przy każdym pushu zwykle zbyt kosztowny.
@@ -1333,8 +1339,8 @@ Pełny przebieg to **najszersza** kontrola; przy każdym pushu zwykle zbyt koszt
 |-----------|------|-------------|
 | **Smoke** | Szybki sygnał po zmianie | `-m smoke` (17 testów) |
 | **Regresja wąska** | Obszar dotknięty diffem | `-m api`, `-m mocks_httpx`, `-m distributed_lab`, … |
-| **Regresja CI (szeroka)** | Stabilna brama bez UI/Dockera | 315 testów, filtr **tests** |
-| **Pełny suite** | Cała kolekcja | wszystkie **400**, plus UI/selenium/compose w razie potrzeby |
+| **Regresja CI (szeroka)** | Stabilna brama bez UI/Dockera | **391** testów, filtr **tests** |
+| **Pełny suite** | Cała kolekcja | wszystkie **476**, plus UI/selenium/compose w razie potrzeby |
 
 **Severity** i **feature** w Allure (N1) oraz priorytet case w TestRail (N2) uzupełniają markery.
 
@@ -1344,7 +1350,7 @@ Pełny przebieg to **najszersza** kontrola; przy każdym pushu zwykle zbyt koszt
 |-----------|--------|----------|--------|
 | Lokalnie po zmianie | Według obszaru | `pytest tests/mocks_lab -m mocks_httpx -q` | Zepsuty mock HTTP / ApiClient |
 | Szybka brama | Smoke | `pytest -m smoke -q` | „Czy framework żyje?” |
-| Push / PR (jak CI) | CI-315 | `pytest -m "not ui and not selenium and not compose" -q -n auto` | API/L2/L3/mocki bez Grid |
+| Push / PR (jak CI) | CI-391 | `pytest -m "not ui and not selenium and not compose" -q -n auto` | API/L2/L3/mocki/device_lab bez Grid |
 | Po zmianach UI | Podzbiór Playwright | `pytest -m "ui and not serial" -q` | Scenariusze przeglądarki |
 | Nightly / przed release | Pełny + infra | `pytest -q`; `docker compose up … tests`; profile M2 | Compose, Grid, pełna kolekcja |
 
@@ -1362,8 +1368,8 @@ pytest tests/parallel_lab -m parallel_lab -n 2 -q
 
 ### Samokontrola
 
-1. `--collect-only`: smoke **17**, wyrażenie CI **315**, razem **400**.
-2. Potrafisz wyjaśnić, czemu **distributed_lab** jest w CI-315, a **compose** — nie.
+1. `--collect-only`: smoke **17**, wyrażenie CI **391**, razem **476**; **device_lab** **76**.
+2. Potrafisz wyjaśnić, czemu **distributed_lab** i **device_lab** są w CI-391, a **compose** — nie.
 3. Wiesz, kiedy potrzebny jest **`serial`** przy UI i czemu nie łączy się z `-n auto` bez grupowania.
 
 
@@ -1485,6 +1491,127 @@ W filtrze CI: `not ui and not selenium and not compose`. Marker w `pyproject.tom
 2. Różnica `fail_dfu` vs `complete_dfu` dla wersji FW?
 3. Pełny zielony `-m device_lab`.
 
+## O — niezawodność automation (retry, flaky, CI gates, AI)
+
+<!-- readme-chapter:o -->
+### O rozdziale
+
+**O** — niezawodność automation: kontrolowany **retry** HTTP, higiena **anti-flaky**, **quality gates** w GitHub Actions oraz rozwój **wspomagany AI** z obowiązkową weryfikacją. Materiał opiera się na `lab_fw`, `.github/workflows/` i [tests/README_PYTEST.md](tests/README_PYTEST.md).
+
+Powiązane rozdziały: [L1](#systemy-rozproszone-teoria-i-terminologia-l1), [L2](#l2--kolejka-retry-timeout-deadline-idempotency), [L3](#l3--śledztwo-awarii-checklista), [N3](#n3--testowanie-oparte-na-ryzyku-smoke-i-pełna-regresja), [M1](#m1--wykonanie-równoległe-i-izolacja-zasobów), [J3](#j3--mock-device-inventory-api-chmura-i-dfu) (POST DFU bez ślepego retry).
+
+---
+
+### O1 — Polityka retry (klient HTTP)
+
+**Źródło prawdy:** `src/lab_fw/api/retry_policy.py` → `should_retry(exc)`; orkiestracja — `src/lab_fw/core/retry.py` → `retry_call`.
+
+| Sytuacja | Retry? |
+|----------|--------|
+| **GET** + HTTP **429**, **503** | Tak |
+| **GET** + HTTP 400, 401, 404, 422, **500**, … | Nie |
+| **GET** + transport (ConnectError, ReadTimeout, …) | Tak |
+| **POST** + dowolny status lub transport | **Nie** |
+
+**Dlaczego brak retry POST:** serwer mógł już wykonać operację; powtórzenie daje **duplikat skutku** (zapis, płatność, drugi `start_dfu`). Po timeout POST potrzebne są **idempotency** i jawna polityka (L2), nie ślepa pętla.
+
+**GET + 500 bez retry:** to odpowiedź o **błędzie aplikacji**; powtórzenia maskują defekt i obciążają system. Retry tylko przy **transient** (503, 429, sieć).
+
+**429:** polityka pozwala retry na GET; w produkcji uwzględnia się **`Retry-After`**; w kliencie lab pauza to **backoff + jitter** w `retry_call`, bez parsowania nagłówka.
+
+**Parametry `retry_call`:**
+
+- `attempts=3` — trzy wywołania `fn()` łącznie (pierwsza próba + dwa powtórzenia).
+- `retry_if=True` — przed powtórzeniem **`should_retry`**; przy `retry_if=False` możliwy „ślepy” retry przez `retry_on` (niebezpieczne dla POST).
+- Po wyczerpaniu prób — **ostatni** wyjątek; sukcesu się nie symuluje.
+
+```bash
+pytest tests/test_api_retry_policy.py -m api -q
+pytest tests/test_api_retry_policy.py -v -k "503" --log-cli-level=WARNING
+```
+
+**Retry klienta ≠ pytest-rerun:** `pytest-rerunfailures` na całym suite może ukryć flaky lub prawdziwy bug; flaky leczy się przez **O2**, nie globalnym rerun.
+
+---
+
+### O2 — Anti-flaky i kwarantanna
+
+Checklista: [tests/README_PYTEST.md](tests/README_PYTEST.md) → **Anti-flaky checklist**.
+
+1. Testy **nie zależą od kolejności** wykonania.
+2. **Brak współdzielonego mutable state** między testami.
+3. Unit/API **bez prawdziwej sieci** — MockTransport / mock handler.
+4. **Bez `sleep`** jako warunku sukcesu — oczekiwanie na **stan** z timeoutem.
+5. Suite **zielony** bez `-n auto` i z **`pytest -q -n auto`**.
+
+**xdist:** każdy worker to osobny proces; unikalny plik/rekord/fixture na test; wspólny zasób — **FileLock** (`tests/parallel_lab/`, M1) lub **`@pytest.mark.xdist_group`**. Marker **`serial`** — testy, których nie wolno równoleglić z innymi; tryb wynika z **komendy pytest**.
+
+**Kwarantanna:** reprodukcja → logi / Allure → root cause → fix; brak szybkiego fixu — **`@pytest.mark.skip(reason=…)`** + issue, **nie** `--reruns 10` na całym CI.
+
+```bash
+pytest -q -n auto
+pytest tests/parallel_lab -m parallel_lab -n 2 -q
+```
+
+---
+
+### O3 — Quality gates w CI
+
+Dwa poziomy gate (patrz [GitHub Actions](#github-actions)):
+
+| Workflow | Runner | Co sprawdza |
+|----------|--------|-------------|
+| **`tests.yml`** | `ubuntu-latest`, pip | `pytest -m "not ui and not selenium and not compose" -q -n auto`, sekret `LAB_FW_API_TOKEN`, artefakt Allure |
+| **`ci.yml`** | Docker Compose | `mock-api`, testy compose, Selenium i Playwright (parallel + **serial**), cleanup `if: always()` |
+
+**Shift-left:** krok **Check secret** pada **przed** pytest przy pustym tokenie.
+
+**Filtr CI (tests.yml):** API, mocks, `distributed_lab`, `parallel_lab`, **`device_lab`**, reporting — **bez** `ui`, `selenium`, `compose`.
+
+**Smoke (`-m smoke`, ~17 testów)** — szybki sygnał lokalny; **nie** zastępuje filtra CI (~**391** testów). **Pełna kolekcja** — ~**476** (`pytest --collect-only -q`).
+
+**`if: always()`** przy upload Allure — artefakt przy **czerwonym** jobie; status joba pozostaje failed.
+
+Lokalna symulacja gate PR:
+
+```bash
+pytest -m "not ui and not selenium and not compose" -q -n auto --tb=line
+```
+
+---
+
+### O4 — Rozwój wspomagany AI
+
+Zalecany cykl:
+
+1. **Wymagania i ograniczenia** (kontrakt API, brak zmian testów bez uzgodnienia).
+2. **Agent** (np. Cursor): scaffold, docs, wyszukiwanie, szkice.
+3. **Review diff** — domena, security, styl, zgodność z `lab_fw`.
+4. **pytest** lokalnie; duże zmiany — **filtr CI**; w razie potrzeby pełny **`ci.yml`** przez Compose.
+5. **Merge** po review i zielonym gate; flaky — **O2**, nie osłabianie CI.
+
+AI przyspiesza szkice; **jakość** dają testy, logi i Twój review — jak przy każdym PR.
+
+---
+
+### Tabela podsumowująca
+
+| Temat | Pliki / komendy |
+|-------|-----------------|
+| Retry | `retry_policy.py`, `test_api_retry_policy.py` |
+| Flaky | `tests/README_PYTEST.md`, `test_xdist_isolation.py`, `parallel_lab` |
+| Gates | `.github/workflows/tests.yml`, `ci.yml`, N3 |
+| AI | Review + pytest + Actions |
+
+### Samokontrola
+
+1. Trzy przypadki retry **GET** i jeden, gdy **POST** nie retry.
+2. Czym **smoke** różni się od filtra **tests.yml**?
+3. Dlaczego **`distributed_lab`** jest w filtrze CI, a **`compose`** nie?
+4. Dlaczego **`upload-artifact: if: always()`** nie robi joba zielonym?
+5. Jednym akapitem: Twój workflow AI od spec do merge.
+
+
 ## Allure (skrót)
 
 <!-- readme-chapter:allure_short -->
@@ -1533,7 +1660,4 @@ Szczegóły podsystemów `lab_fw` i pytest. README główny to mapa; README modu
 <!-- readme-chapter:extra -->
 ### O tym rozdziale
 
-Zewnętrzny plan rozwoju — [PLAN_MID_HP.md](PLAN_MID_HP.md).
-
-
-Plan rozwoju umiejętności: [PLAN_MID_HP.md](PLAN_MID_HP.md).
+Zewnętrzny spis tematów — [PLAN_MID_HP.md](PLAN_MID_HP.md); polecenia i runtime opisuje ten README oraz README modułów.

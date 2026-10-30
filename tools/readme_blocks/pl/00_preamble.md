@@ -13,6 +13,9 @@ Ten dokument to jednocześnie **instrukcja** (polecenia, env, CI) i **podręczni
 - Zrozumienie retry, timeout, deadline i idempotency na przykładzie `ApiClient` i `Worker`.
 - Badanie awarii: env → build → logs → metrics → trace.
 - Allure oraz opcjonalne powiązanie z TestRail i Jira.
+- Politykę **HTTP retry** (GET vs POST), higienę **anti-flaky** i **kwarantannę** bez osłabiania CI.
+- Różnicę **smoke**, **filtr CI** i **pełna kolekcja**; odczyt workflow **tests** vs **CI**.
+- Pętlę **AI-assisted**: diff → pytest → Actions, bez ślepego merge.
 
 ### Wymagania
 
@@ -33,8 +36,9 @@ Ten dokument to jednocześnie **instrukcja** (polecenia, env, CI) i **podręczni
 | **M1–M2** | xdist, izolacja, Selenium Grid, UI w Dockerze | `tests/parallel_lab/`, `tests/conftest.py`, profile Compose |
 | **N1–N3** | Allure, TestRail, Jira, zestawy risk-based | `src/lab_fw/reporting/`, `tests/test_api_client.py`, `pyproject.toml` (markery) |
 | **J3** | Mock Device Inventory (chmura, DFU, heartbeat) | `src/device_lab/`, `tests/device_lab/` |
+| **O1–O4** | Retry, flaky, quality gates, workflow AI | `retry_policy.py`, `tests.yml`, `tests/README_PYTEST.md` |
 
-Proponowana kolejność: **Szybki start → Struktura → I1–I4 → L1 → L2 → L3 → M1 → M2 → N1 → N2 → N3 → J3**. Sekcje **Docker** i **GitHub Actions** warto mieć pod ręką przy każdym uruchomieniu.
+Proponowana kolejność: **Szybki start → Struktura → I1–I4 → L1 → L2 → L3 → M1 → M2 → N1 → N2 → N3 → J3 → O**. Sekcje **Docker**, **GitHub Actions** i **Markery pytest** trzymaj pod ręką przy każdym uruchomieniu.
 
 ### Spis treści
 
@@ -54,8 +58,9 @@ Proponowana kolejność: **Szybki start → Struktura → I1–I4 → L1 → L2 
 14. [N2 — TestRail i Jira](#n2--jira--i-testrail)
 15. [N3 — risk-based (smoke / full)](#n3--testy-oparte-na-ryzyku-smoke-i-pełna-regresja)
 16. [J3 — Device Inventory API (chmura i DFU)](#j3--mock-device-inventory-api-chmura-i-dfu)
-17. [Allure (skrót)](#allure-skrót)
-18. [Dokumentacja modułów](#dokumentacja-modułów)
+17. [O — niezawodność automation](#o--niezawodność-automation-retry-flaky-ci-gates-ai)
+18. [Allure (skrót)](#allure-skrót)
+19. [Dokumentacja modułów](#dokumentacja-modułów)
 
 ### Jak czytać rozdziały
 

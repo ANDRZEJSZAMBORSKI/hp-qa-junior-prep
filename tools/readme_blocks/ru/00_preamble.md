@@ -13,6 +13,9 @@
 - Понимание retry, timeout, deadline, idempotency на примере `ApiClient` и `Worker`.
 - Навык расследования падений: env → build → logs → metrics → trace.
 - Практику Allure + опциональную связь с TestRail и Jira.
+- Политику **HTTP retry** (GET vs POST), **anti-flaky** hygiene и **quarantine** без ослабления CI.
+- Различие **smoke**, **CI-filter** и **full collection**; чтение workflow **tests** vs **CI**.
+- Дисциплину **AI-assisted** разработки: diff → pytest → Actions, без слепого merge.
 
 ### Требования
 
@@ -33,8 +36,9 @@
 | **M1–M2** | xdist, изоляция, Selenium Grid, UI в Docker | `tests/parallel_lab/`, `tests/conftest.py`, Compose profiles |
 | **N1–N3** | Allure, TestRail, Jira, risk-based наборы | `src/lab_fw/reporting/`, `tests/test_api_client.py`, `pyproject.toml` (markers) |
 | **J3** | Mock Device Inventory (cloud, DFU, heartbeat) | `src/device_lab/`, `tests/device_lab/` |
+| **O1–O4** | Retry, flaky, quality gates, AI workflow | `retry_policy.py`, `tests.yml`, `tests/README_PYTEST.md` |
 
-Рекомендуемый порядок чтения: **Быстрый старт → Структура → I1–I4 → L1 → L2 → L3 → M1 → M2 → N1 → N2 → N3 → J3**. Разделы Docker и GitHub Actions удобно держать под рукой при любом прогоне.
+Рекомендуемый порядок чтения: **Быстрый старт → Структура → I1–I4 → L1 → L2 → L3 → M1 → M2 → N1 → N2 → N3 → J3 → O**. Разделы **Docker**, **GitHub Actions** и **Маркеры pytest** держите под рукой при каждом прогоне.
 
 ### Содержание
 
@@ -54,8 +58,9 @@
 14. [N2 — TestRail и Jira](#n2--jira--testrail)
 15. [N3 — risk-based (smoke / full)](#n3--тестирование-на-основе-рисков-smoke-и-полная-регрессия)
 16. [J3 — Device Inventory API (облако и DFU)](#j3--mock-device-inventory-api-облако-и-dfu)
-17. [Allure (кратко)](#allure-кратко)
-18. [Документация модулей](#документация-модулей)
+17. [O — надёжность automation](#o--надёжность-automation-retry-flaky-ci-gates-ai)
+18. [Allure (кратко)](#allure-кратко)
+19. [Документация модулей](#документация-модулей)
 
 ### Как читать каждый раздел
 

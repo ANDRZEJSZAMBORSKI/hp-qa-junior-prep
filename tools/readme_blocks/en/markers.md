@@ -14,6 +14,7 @@ Markers select test subsets and drive CI. They **do not** start infrastructure.
 
 - `distributed_lab` — L2/L3.
 - `parallel_lab` — M1.
+- `device_lab` — J3, in-process mock cloud (in **tests** CI filter).
 - `reporting` — Allure decorators.
 
 ### Self-check

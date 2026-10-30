@@ -14,6 +14,7 @@
 
 - `distributed_lab` — L2/L3, без Docker.
 - `parallel_lab` — M1, xdist и файлы.
+- `device_lab` — J3, mock cloud inventory in-process (входит в CI-filter **tests**).
 - `reporting` — декораторы Allure.
 
 ### Самопроверка

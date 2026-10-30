@@ -12,7 +12,9 @@ Mapa repozytorium: kod frameworka, scenariusze pytest, Docker i CI.
 | `src/lab_fw/reporting/` | dekoratory Allure |
 | `src/lab_fw/pytest_plugin/` | hooki, markery |
 | `src/distributed_lab/` | `Job`, `Worker`, kolejka (L2) |
+| `src/device_lab/` | Mock cloud inventory, handler DFU (J3) |
 | `tests/mocks_lab/` | mocki (I2) |
+| `tests/device_lab/` | Kontrakt HTTP inventory, marker `device_lab` |
 | `tests/distributed_lab/` | L2/L3 |
 | `tests/parallel_lab/` | M1 |
 | `scripts/` | upload TestRail |

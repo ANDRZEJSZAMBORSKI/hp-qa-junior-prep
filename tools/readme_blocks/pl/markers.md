@@ -13,6 +13,7 @@ Markery wybierają podzbiory testów i sterują CI. **Nie** uruchamiają infrast
 
 - `distributed_lab` — L2/L3.
 - `parallel_lab` — M1.
+- `device_lab` — J3, mock cloud in-process (filtr CI **tests**).
 - `reporting` — Allure.
 
 ### Samokontrola

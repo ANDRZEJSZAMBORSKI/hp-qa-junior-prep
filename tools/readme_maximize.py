@@ -91,6 +91,11 @@ HEADINGS: dict[str, dict[str, str]] = {
         "en": "## J3 — mock Device Inventory API (cloud and DFU)",
         "pl": "## J3 — mock Device Inventory API (chmura i DFU)",
     },
+    "o": {
+        "ru": "## O — надёжность automation (retry, flaky, CI gates, AI)",
+        "en": "## O — automation reliability (retry, flaky, CI gates, AI)",
+        "pl": "## O — niezawodność automation (retry, flaky, CI gates, AI)",
+    },
     "allure_short": {
         "ru": "## Allure (кратко)",
         "en": "## Allure (short)",
